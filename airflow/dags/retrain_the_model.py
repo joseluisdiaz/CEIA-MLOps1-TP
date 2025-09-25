@@ -49,14 +49,10 @@ def processing_dag():
         mlflow.set_tracking_uri('http://mlflow:5000')
 
         def load_the_champion_model():
-
             model_name = "heart_disease_model_prod"
             alias = "champion"
 
-            client = mlflow.MlflowClient()
-            model_data = client.get_model_version_by_alias(model_name, alias)
-
-            champion_version = mlflow.sklearn.load_model(model_data.source)
+            champion_version = mlflow.sklearn.load_model(f"models:/{model_name}@{alias}")
 
             return champion_version
 
@@ -69,7 +65,6 @@ def processing_dag():
             return X_train, y_train, X_test, y_test
 
         def mlflow_track_experiment(model, X):
-
             # Track the experiment
             experiment = mlflow.set_experiment("Heart Disease")
 
@@ -101,7 +96,6 @@ def processing_dag():
             return mlflow.get_artifact_uri(artifact_path)
 
         def register_challenger(model, f1_score, model_uri):
-
             client = mlflow.MlflowClient()
             name = "heart_disease_model_prod"
 
@@ -145,7 +139,7 @@ def processing_dag():
 
 
     @task.virtualenv(
-        task_id="train_the_challenger_model",
+        task_id="evaluate_champion_challenge",
         requirements=["scikit-learn==1.3.2",
                       "mlflow==2.10.2",
                       "awswrangler==3.6.0"],
@@ -162,10 +156,7 @@ def processing_dag():
         def load_the_model(alias):
             model_name = "heart_disease_model_prod"
 
-            client = mlflow.MlflowClient()
-            model_data = client.get_model_version_by_alias(model_name, alias)
-
-            model = mlflow.sklearn.load_model(model_data.source)
+            model = mlflow.sklearn.load_model(f"models:/{model_name}@{alias}")
 
             return model
 
@@ -176,7 +167,6 @@ def processing_dag():
             return X_test, y_test
 
         def promote_challenger(name):
-
             client = mlflow.MlflowClient()
 
             # Demote the champion
@@ -192,7 +182,6 @@ def processing_dag():
             client.set_registered_model_alias(name, "champion", challenger_version.version)
 
         def demote_challenger(name):
-
             client = mlflow.MlflowClient()
 
             # delete the alias of challenger
