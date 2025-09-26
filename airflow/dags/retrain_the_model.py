@@ -68,32 +68,35 @@ def processing_dag():
             # Track the experiment
             experiment = mlflow.set_experiment("Heart Disease")
 
-            mlflow.start_run(run_name='Challenger_run_' + datetime.datetime.today().strftime('%Y/%m/%d-%H:%M:%S"'),
-                             experiment_id=experiment.experiment_id,
-                             tags={"experiment": "challenger models", "dataset": "Heart disease"},
-                             log_system_metrics=True)
+            with mlflow.start_run(run_name='Challenger_run_' + datetime.datetime.today().strftime('%Y/%m/%d-%H:%M:%S"'),
+                                    experiment_id=experiment.experiment_id,
+                                    tags={"experiment": "challenger models", "dataset": "Heart disease"},
+                                    log_system_metrics=True
+            ) as run:
 
-            params = model.get_params()
-            params["model"] = type(model).__name__
+                params = model.get_params()
+                params["model"] = type(model).__name__
 
-            mlflow.log_params(params)
+                mlflow.log_params(params)
 
-            # Save the artifact of the challenger model
-            artifact_path = "model"
+                # Save the artifact of the challenger model
+                artifact_path = "model"
 
-            signature = infer_signature(X, model.predict(X))
+                signature = infer_signature(X, model.predict(X))
 
-            mlflow.sklearn.log_model(
-                sk_model=model,
-                artifact_path=artifact_path,
-                signature=signature,
-                serialization_format='cloudpickle',
-                registered_model_name="heart_disease_model_dev",
-                metadata={"model_data_version": 1}
-            )
+                mlflow.sklearn.log_model(
+                    sk_model=model,
+                    artifact_path=artifact_path,
+                    signature=signature,
+                    serialization_format='cloudpickle',
+                    registered_model_name="heart_disease_model_dev",
+                    metadata={"model_data_version": 1}
+                )
 
-            # Obtain the model URI
-            return mlflow.get_artifact_uri(artifact_path)
+                # Obtain the model URI
+                model_uri = f"runs:/{run.info.run_id}/{artifact_path}"
+                return model_uri
+
 
         def register_challenger(model, f1_score, model_uri):
             client = mlflow.MlflowClient()
@@ -108,7 +111,7 @@ def processing_dag():
             result = client.create_model_version(
                 name=name,
                 source=model_uri,
-                run_id=model_uri.split("/")[-3],
+                run_id=model_uri.split("/")[1],
                 tags=tags
             )
 
