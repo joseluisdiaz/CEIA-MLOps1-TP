@@ -67,7 +67,7 @@ def process_etl_heart_data():
 
     @task.virtualenv(
         task_id="make_dummies_variables",
-        requirements=["awswrangler==3.6.0"],
+        requirements=["awswrangler==3.6.0", "mlflow==2.10.2"],
         system_site_packages=True
     )
     def make_dummies_variables():
