@@ -40,3 +40,7 @@ Cada vez que se cambia el modelo champion hay que reiniciar FastAPI para que tom
 
 --------------------------------------------------------------------------------------------------------------------
 
+Carga dataset
+
+- Una vez que este disponible el servicio MinIO, cargar el archivo que se encuentra en la carpeta dataset en el bucket data en una carpeta llamada raw/ (si no existe, crearla).
+  
