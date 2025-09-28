@@ -85,8 +85,17 @@ def process_etl_stroke_data():
         # Clean duplicates
         dataset.drop_duplicates(inplace=True, ignore_index=True)
         
-        # TODO: realizar imputación de nulos
+        # Imputación de nulos
+        col_to_impute = 'bmi'
+        col_to_stratify = 'age_group'
+        bins = [0, 25, 40, 60, dataset["age"].max() + 1]
+        labels = ["0–25", "25–40", "40–60", "60+"]
 
+        dataset["age_group"] = pd.cut(dataset["age"], bins=bins, labels=labels, right=False)
+        dataset[col_to_impute] = dataset[col_to_impute].fillna(dataset.groupby(col_to_stratify)[col_to_impute].transform('median'))
+        dataset.drop(columns="age_group", inplace=True)
+
+        # Generating dummies variables
         categories_list = ['gender', 'ever_married', 'work_type', 'Residence_type', 'smoking_status']
         dataset[categories_list] = dataset[categories_list].astype(str)
         dataset_with_dummies = pd.get_dummies(data=dataset,
