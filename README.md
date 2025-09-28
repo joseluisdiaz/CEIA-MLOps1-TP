@@ -1,7 +1,7 @@
-# Ejemplo de Implementación de un Modelo de Heart Disease 
-### MLPOS1 - CEIA - FIUBA
+# Implementación de un Modelo de predicción de accidentes cerebrovasculares
+### MLOPS1 - CEIA - FIUBA
 
-En este ejemplo, mostramos una implementación de un modelo productivo para detectar si un paciente tiene una enfermedad cardiaca o no, utilizando el servicio de **ML Models and something more Inc.**. Para ello, obtenemos los datos de [Heart Disease - UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/45/heart+disease).
+En este trabajo implementamos un modelo productivo para predecir si una persona va a sufrir un ACV. Para ello, obtenemos los datos de [Stroke Prediction Dataset - Kaggle](https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset).
 
 La implementación incluye:
 
@@ -18,11 +18,11 @@ Las flechas verdes y violetas representan nuevas conexiones en comparación con 
 
 El orden para probar el funcionamiento completo es el siguiente:
 
-1. Tan pronto como se levante el sistema multi-contenedor, ejecuta en Airflow el DAG llamado `process_etl_heart_data`, de esta manera se crearán los datos en el bucket `s3://data`.
+1. Tan pronto como se levante el sistema multi-contenedor, ejecuta en Airflow el DAG llamado `process_etl_stroke_data`, de esta manera se crearán los datos en el bucket `s3://data`.
 2. Ejecuta la notebook (ubicada en `notebook_example`) para realizar la búsqueda de hiperparámetros y entrenar el mejor modelo.
 3. Utiliza el servicio de API.
 
-Además, una vez entrenado el modelo, puedes ejecutar el DAG `retrain_the_model` para probar un nuevo modelo que compita con el campeón. Antes de hacer esto, ejecuta el DAG `process_etl_heart_data` para que el conjunto de datos sea nuevo, de lo contrario se entrenará el mismo modelo. Este proceso siempre dará como resultado que el modelo inicial es mejor... el motivo de esto se deja al lector para que comprenda lo que está sucediendo.
+Además, una vez entrenado el modelo, puedes ejecutar el DAG `retrain_the_model` para probar un nuevo modelo que compita con el campeón. Antes de hacer esto, ejecuta el DAG `process_etl_stroke_data` para que el conjunto de datos sea nuevo, de lo contrario se entrenará el mismo modelo. Este proceso siempre dará como resultado que el modelo inicial es mejor... el motivo de esto se deja al lector para que comprenda lo que está sucediendo.
 
 ### API 
 
@@ -39,29 +39,28 @@ curl -X 'POST' \
   -H 'Content-Type: application/json' \
   -d '{
   "features": {
+    "id": 12345,
+    "gender": "Female",
     "age": 67,
-    "ca": 3,
-    "chol": 286,
-    "cp": 4,
-    "exang": 1,
-    "fbs": 0,
-    "oldpeak": 1.5,
-    "restecg": 2,
-    "sex": 1,
-    "slope": 2,
-    "thal": 3,
-    "thalach": 108,
-    "trestbps": 160
+    "hypertension": 1,
+    "heart_disease": 0,
+    "ever_married": "Yes",
+    "work_type": "Private",
+    "Residence_type": "Urban",
+    "avg_glucose_level": 105.5,
+    "bmi": 28.7,
+    "smoking_status": "formerly smoked",
+    "stroke": 0
   }
 }'
 ```
 
-La respuesta del modelo será un valor booleano y un mensaje en forma de cadena de texto que indicará si el paciente tiene o no una enfermedad cardiaca.
+La respuesta del modelo será un valor booleano y un mensaje en forma de cadena de texto que indicará si la persona està propensa a sufrir un ACV o no.
 
 ```json
 {
   "int_output": true,
-  "str_output": "Heart disease detected"
+  "str_output": "Stroke detected"
 }
 ```
 
