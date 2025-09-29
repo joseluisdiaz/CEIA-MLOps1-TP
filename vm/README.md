@@ -21,7 +21,7 @@ Este archivo contiene una máquina virtual con el sistema operativo **Ubuntu 24.
 - Acceso a Portainer:  
 	URL: `https://<IP del servidor>:9443`  
 	Usuario: `mlops`  
-	Contraseña: `MlopsMopls1234`
+	Contraseña: `MlopsMlops1234`
 
 ## Directorio del proyecto
 
