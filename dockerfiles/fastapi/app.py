@@ -77,7 +77,7 @@ def check_model():
     global version_model
 
     try:
-        model_name = "heart_disease_model_prod"
+        model_name = "stroke_prediction_model_prod"
         alias = "champion"
 
         mlflow.set_tracking_uri('http://mlflow:5000')
@@ -99,9 +99,9 @@ def check_model():
 
 class ModelInput(BaseModel):
     """
-    Input schema for the heart disease prediction model.
+    Input schema for the stroke prediction model.
 
-    This class defines the input fields required by the heart disease prediction model along with their descriptions
+    This class defines the input fields required by the stroke prediction model along with their descriptions
     and validation constraints.
 
     :param age: Age of the patient (0 to 150).
@@ -211,19 +211,19 @@ class ModelInput(BaseModel):
 
 class ModelOutput(BaseModel):
     """
-    Output schema for the heart disease prediction model.
+    Output schema for the stroke prediction model.
 
-    This class defines the output fields returned by the heart disease prediction model along with their descriptions
+    This class defines the output fields returned by the stroke prediction model along with their descriptions
     and possible values.
 
-    :param int_output: Output of the model. True if the patient has a heart disease.
-    :param str_output: Output of the model in string form. Can be "Healthy patient" or "Heart disease detected".
+    :param int_output: Output of the model. True if the patient has a stroke.
+    :param str_output: Output of the model in string form. Can be "Healthy patient" or "Stroke detected".
     """
 
     int_output: bool = Field(
-        description="Output of the model. True if the patient has a heart disease",
+        description="Output of the model. True if the patient has a stroke",
     )
-    str_output: Literal["Healthy patient", "Heart disease detected"] = Field(
+    str_output: Literal["Healthy patient", "Stroke detected"] = Field(
         description="Output of the model in string form",
     )
 
@@ -232,7 +232,7 @@ class ModelOutput(BaseModel):
             "examples": [
                 {
                     "int_output": True,
-                    "str_output": "Heart disease detected",
+                    "str_output": "Stroke detected",
                 }
             ]
         }
@@ -240,7 +240,7 @@ class ModelOutput(BaseModel):
 
 
 # Load the model before start
-model, version_model, data_dict = load_model("heart_disease_model_prod", "champion")
+model, version_model, data_dict = load_model("stroke_prediction_model_prod", "champion")
 
 app = FastAPI()
 
@@ -248,11 +248,11 @@ app = FastAPI()
 @app.get("/")
 async def read_root():
     """
-    Root endpoint of the Heart Disease Detector API.
+    Root endpoint of the Stroke Detector API.
 
     This endpoint returns a JSON response with a welcome message to indicate that the API is running.
     """
-    return JSONResponse(content=jsonable_encoder({"message": "Welcome to the Heart Disease Detector API"}))
+    return JSONResponse(content=jsonable_encoder({"message": "Welcome to the Stroke Detector API"}))
 
 
 @app.post("/predict/", response_model=ModelOutput)
@@ -264,9 +264,9 @@ def predict(
     background_tasks: BackgroundTasks
 ):
     """
-    Endpoint for predicting heart disease.
+    Endpoint for predicting stroke.
 
-    This endpoint receives features related to a patient's health and predicts whether the patient has heart disease
+    This endpoint receives features related to a patient's health and predicts whether the patient has stroke
     or not using a trained model. It returns the prediction result in both integer and string formats.
     """
 
@@ -300,7 +300,7 @@ def predict(
     # Convert prediction result into string format
     str_pred = "Healthy patient"
     if prediction[0] > 0:
-        str_pred = "Heart disease detected"
+        str_pred = "Stroke detected"
 
     # Check if the model has changed asynchronously
     background_tasks.add_task(check_model)

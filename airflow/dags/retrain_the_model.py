@@ -4,7 +4,7 @@ from airflow.decorators import dag, task
 import utils.constants as consts
 
 markdown_text = """
-### Re-Train the Model for Heart Disease Data
+### Re-Train the Model for Stroke Prediction Data
 
 This DAG re-trains the model based on new data, tests the previous model, and put in production the new one 
 if it performs  better than the old one. It uses the F1 score to evaluate the model with the test data.
@@ -12,7 +12,7 @@ if it performs  better than the old one. It uses the F1 score to evaluate the mo
 """
 
 default_args = {
-    'owner': "Facundo Adrian Lucianna",
+    'owner': "AlumnosOct25",
     'depends_on_past': False,
     'schedule_interval': None,
     'retries': 1,
@@ -25,7 +25,7 @@ default_args = {
     description="Re-train the model based on new data, tests the previous model, and put in production the new one if "
                 "it performs better than the old one",
     doc_md=markdown_text,
-    tags=["Re-Train", "Heart Disease"],
+    tags=["Re-Train", "Stroke Prediction"],
     default_args=default_args,
     catchup=False,
 )

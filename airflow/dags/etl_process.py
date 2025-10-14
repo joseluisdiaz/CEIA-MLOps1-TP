@@ -40,13 +40,12 @@ def process_etl_stroke_data():
         import sys
         sys.path.append("/opt/airflow/dags")
         import awswrangler as wr
-        import utils.etl_utils as etl
         import utils.constants as consts
         import pandas as pd
         
 
-        local_path = "/opt/airflow/dataset/healthcare-dataset-stroke-data.csv"
-        s3_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_PATH}"
+        local_path = f"{consts.OPT_DATASET}{consts.ORIG_DATA_NAME}"
+        s3_path = f"{consts.S3}{consts.BUCKET_RAW}{consts.ORIG_DATA_NAME}"
 
         try:
             wr.s3.head_object(s3_path)
@@ -60,7 +59,7 @@ def process_etl_stroke_data():
             
 
     @task.virtualenv(
-        task_id="make_dummies_variables",
+        task_id="null_imputation",
         requirements=["awswrangler==3.6.0", "mlflow==2.10.2"],
         system_site_packages=True
     )
@@ -72,13 +71,12 @@ def process_etl_stroke_data():
         sys.path.append("/opt/airflow/dags")
         import pandas as pd
         import awswrangler as wr
-        import utils.etl_utils as etl
         import utils.constants as consts
 
 
-        data_original_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_PATH}"
-        data_end_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_END_PATH}"
-        dataset = wr.s3.read_csv(s3_path=data_original_path)
+        data_original_path = f"{consts.S3}{consts.BUCKET_RAW}{consts.ORIG_DATA_NAME}"
+        data_end_path = f"{consts.S3}{consts.BUCKET_RAW}{consts.END_DATA_NAME}"
+        dataset = wr.s3.read_csv(data_original_path)
 
         # Clean duplicates
         dataset.drop_duplicates(inplace=True, ignore_index=True)
@@ -119,9 +117,10 @@ def process_etl_stroke_data():
         import utils.etl_utils as etl
         import utils.constants as consts
 
-        data_original_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_PATH}"
-        data_end_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_END_PATH}"
-        dataset = wr.s3.read_csv(s3_path=data_original_path)
+        data_original_path = f"{consts.S3}{consts.BUCKET_RAW}{consts.ORIG_DATA_NAME}"
+        data_end_path = f"{consts.S3}{consts.BUCKET_RAW}{consts.END_DATA_NAME}"
+        
+        dataset = wr.s3.read_csv(data_original_path)
 
         # Generating dummies variables
         with open(consts.CATEGORICAL_FEATURES_FILE, "r") as f:
@@ -194,10 +193,9 @@ def process_etl_stroke_data():
         import awswrangler as wr
         from sklearn.model_selection import train_test_split
         from airflow.models import Variable
-        import utils.etl_utils as etl
         import utils.constants as consts
 
-        data_original_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_END_PATH}"
+        data_original_path = f"{consts.S3}{consts.BUCKET_RAW}{consts.END_DATA_NAME}"
         dataset = wr.s3.read_csv(data_original_path)
 
         test_size = float(Variable.get("test_size_stroke", default_var=0.2))
@@ -208,7 +206,7 @@ def process_etl_stroke_data():
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, stratify=y)
 
-        data_final_path = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}"
+        data_final_path = f"{consts.S3}{consts.BUCKET_FINAL}"
 
         wr.s3.to_csv(df=X_train, path=f"{data_final_path}{consts.TRAIN}/X_{consts.TRAIN}.csv", index=False)
         wr.s3.to_csv(df=X_test, path=f"{data_final_path}{consts.TEST}/X_{consts.TEST}.csv", index=False)
@@ -239,10 +237,10 @@ def process_etl_stroke_data():
         import utils.etl_utils as etl
         import utils.constants as consts
 
-        path_train = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}{consts.TRAIN}/X_{consts.TRAIN}.csv"
-        path_test = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}{consts.TEST}/X_{consts.TEST}.csv"
-        X_train = wr.s3.read_csv(s3_path=path_train)
-        X_test  = wr.s3.read_csv(s3_path=path_test)
+        path_train = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TRAIN}/X_{consts.TRAIN}.csv"
+        path_test = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TEST}/X_{consts.TEST}.csv"
+        X_train = wr.s3.read_csv(path_train)
+        X_test  = wr.s3.read_csv(path_test)
 
         sc_X = StandardScaler(with_mean=True, with_std=True)
         X_train_arr = sc_X.fit_transform(X_train)
