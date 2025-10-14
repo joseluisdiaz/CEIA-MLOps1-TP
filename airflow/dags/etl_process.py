@@ -32,55 +32,53 @@ default_args = {
 def process_etl_stroke_data():
 
     @task.virtualenv(
-        task_id="obtain_original_data",
-        requirements=["awswrangler==3.6.0"],
+        task_id="upload_original_csv_if_needed",
+        requirements=["awswrangler==3.6.0", "pandas"],
         system_site_packages=True
     )
-    def get_data():
-        """
-        Load the raw data from UCI repository
-        """
+    def upload_original_csv_if_needed():
+        import sys
+        sys.path.append("/opt/airflow/dags")
         import awswrangler as wr
-        from airflow.models import Variable
+        import utils.etl_utils as etl
+        import utils.constants as consts
+        import pandas as pd
+        
 
-        # Endpoint MinIO
-        # Endpoint MinIO
-        wr.config.s3_endpoint_url = "http://minio:9000"
+        local_path = "/opt/airflow/dataset/healthcare-dataset-stroke-data.csv"
+        s3_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_PATH}"
 
-        data_path = "s3://data/raw/healthcare-dataset-stroke-data.csv"
-        dataframe = wr.s3.read_csv(data_path)
+        try:
+            wr.s3.head_object(s3_path)
+            print(f"El archivo ya existe en S3: {s3_path}")
+        except Exception:
+            df = pd.read_csv(local_path)
+            #Save data
+            wr.s3.to_csv(df=df, path=s3_path, index=False)
 
-        target_col = Variable.get("target_col_stroke", default_var="stroke")
-
-        wr.s3.to_csv(df=dataframe,
-                     path=data_path,
-                     index=False)
-
+            print(f"Archivo subido a S3: {s3_path}")
+            
 
     @task.virtualenv(
         task_id="make_dummies_variables",
         requirements=["awswrangler==3.6.0", "mlflow==2.10.2"],
         system_site_packages=True
     )
-    def make_dummies_variables():
+    def null_imputation():
         """
-        Convert categorical variables into one-hot encoding.
+        Impute missing values in the dataset.
         """
-        import json
-        import datetime
-        import boto3
-        import botocore.exceptions
-        import mlflow
-
-        import awswrangler as wr
+        import sys
+        sys.path.append("/opt/airflow/dags")
         import pandas as pd
-        import numpy as np
+        import awswrangler as wr
+        import utils.etl_utils as etl
+        import utils.constants as consts
 
-        from airflow.models import Variable
 
-        data_original_path = "s3://data/raw/healthcare-dataset-stroke-data.csv"
-        data_end_path = "s3://data/raw/stroke_dummies.csv"
-        dataset = wr.s3.read_csv(data_original_path)
+        data_original_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_PATH}"
+        data_end_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_END_PATH}"
+        dataset = wr.s3.read_csv(s3_path=data_original_path)
 
         # Clean duplicates
         dataset.drop_duplicates(inplace=True, ignore_index=True)
@@ -95,32 +93,52 @@ def process_etl_stroke_data():
         dataset[col_to_impute] = dataset[col_to_impute].fillna(dataset.groupby(col_to_stratify)[col_to_impute].transform('median'))
         dataset.drop(columns="age_group", inplace=True)
 
+        wr.s3.to_csv(df=dataset, path=data_end_path, index=False)
+
+        
+    @task.virtualenv(
+        task_id="make_dummies_variables",
+        requirements=["awswrangler==3.6.0", "mlflow==2.10.2"],
+        system_site_packages=True
+    )
+    def make_dummies_variables():
+        """
+        Convert categorical variables into one-hot encoding.
+        """
+        import sys
+        sys.path.append("/opt/airflow/dags")
+        
+        import datetime
+        import boto3
+        import mlflow
+        import pandas as pd
+        import numpy as np
+        from airflow.models import Variable
+        import awswrangler as wr
+       
+        import utils.etl_utils as etl
+        import utils.constants as consts
+
+        data_original_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_PATH}"
+        data_end_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_END_PATH}"
+        dataset = wr.s3.read_csv(s3_path=data_original_path)
+
         # Generating dummies variables
-        categories_list = ['gender', 'ever_married', 'work_type', 'Residence_type', 'smoking_status']
-        dataset[categories_list] = dataset[categories_list].astype(str)
+        with open(consts.CATEGORICAL_FEATURES_FILE, "r") as f:
+            categorical_features = [line.strip() for line in f if line.strip()]
+        dataset[categorical_features] = dataset[categorical_features].astype(str)
         dataset_with_dummies = pd.get_dummies(data=dataset,
-                                              columns=categories_list,
+                                              columns=categorical_features,
                                               drop_first=True)
 
-        wr.s3.to_csv(df=dataset_with_dummies,
-                     path=data_end_path,
-                     index=False)
+        wr.s3.to_csv(df=dataset_with_dummies, path=data_end_path, index=False)
 
         # Save information of the dataset
         client = boto3.client('s3')
 
-        data_dict = {}
-        try:
-            client.head_object(Bucket='data', Key='data_info/data.json')
-            result = client.get_object(Bucket='data', Key='data_info/data.json')
-            text = result["Body"].read().decode()
-            data_dict = json.loads(text)
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] != "404":
-                # Something else has gone wrong.
-                raise e
+        data_dict = etl.get_metadata_info(client)
 
-        target_col = Variable.get("target_col_stroke",default_var="stroke")
+        target_col = Variable.get(consts.TARGET_COLUMN, default_var=consts.TARGET_COLUMN_DEFAULT)
         dataset_log = dataset.drop(columns=target_col)
         dataset_with_dummies_log = dataset_with_dummies.drop(columns=target_col)
 
@@ -128,28 +146,21 @@ def process_etl_stroke_data():
         data_dict['columns'] = dataset_log.columns.to_list()
         data_dict['columns_after_dummy'] = dataset_with_dummies_log.columns.to_list()
         data_dict['target_col'] = target_col
-        data_dict['categorical_columns'] = categories_list
+        data_dict['categorical_columns'] = categorical_features
         data_dict['columns_dtypes'] = {k: str(v) for k, v in dataset_log.dtypes.to_dict().items()}
-        data_dict['columns_dtypes_after_dummy'] = {k: str(v) for k, v in dataset_with_dummies_log.dtypes
-                                                                                                 .to_dict()
-                                                                                                 .items()}
+        data_dict['columns_dtypes_after_dummy'] = {k: str(v) for k, v in dataset_with_dummies_log.dtypes.to_dict().items()}
 
         category_dummies_dict = {}
-        for category in categories_list:
+        for category in categorical_features:
             category_dummies_dict[category] = np.sort(dataset_log[category].unique()).tolist()
 
         data_dict['categories_values_per_categorical'] = category_dummies_dict
 
         data_dict['date'] = datetime.datetime.today().strftime('%Y/%m/%d-%H:%M:%S"')
-        data_string = json.dumps(data_dict, indent=2)
+        
+        etl.save_metadata_info(client, data_dict)
 
-        client.put_object(
-            Bucket='data',
-            Key='data_info/data.json',
-            Body=data_string
-        )
-
-        mlflow.set_tracking_uri('http://mlflow:5000')
+        mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
         experiment = mlflow.set_experiment("Stroke Prediction")
 
         mlflow.start_run(run_name='ETL_run_' + datetime.datetime.today().strftime('%Y/%m/%d-%H:%M:%S"'),
@@ -158,11 +169,11 @@ def process_etl_stroke_data():
                          log_system_metrics=True)
 
         mlflow_dataset = mlflow.data.from_pandas(dataset,
-                                                 source="https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset",
+                                                 source=consts.KAGGLE_DATASET_URL,
                                                  targets=target_col,
                                                  name="stroke_data_complete")
         mlflow_dataset_dummies = mlflow.data.from_pandas(dataset_with_dummies,
-                                                         source="https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset",
+                                                         source=consts.KAGGLE_DATASET_URL,
                                                          targets=target_col,
                                                          name="stroke_data_complete_with_dummies")
         mlflow.log_input(mlflow_dataset, context="Dataset")
@@ -178,16 +189,15 @@ def process_etl_stroke_data():
         """
         Generate a dataset split into a training part and a test part
         """
+        import sys
+        sys.path.append("/opt/airflow/dags")
         import awswrangler as wr
         from sklearn.model_selection import train_test_split
         from airflow.models import Variable
+        import utils.etl_utils as etl
+        import utils.constants as consts
 
-        def save_to_csv(df, path):
-            wr.s3.to_csv(df=df,
-                         path=path,
-                         index=False)
-
-        data_original_path = "s3://data/raw/stroke_dummies.csv"
+        data_original_path = f"{consts.S3}{consts.BUCKET}/{consts.RAW_END_PATH}"
         dataset = wr.s3.read_csv(data_original_path)
 
         test_size = float(Variable.get("test_size_stroke", default_var=0.2))
@@ -198,13 +208,13 @@ def process_etl_stroke_data():
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, stratify=y)
 
-        # Clean duplicates
-        dataset.drop_duplicates(inplace=True, ignore_index=True)
+        data_final_path = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}"
 
-        save_to_csv(X_train, "s3://data/final/train/stroke_X_train.csv")
-        save_to_csv(X_test, "s3://data/final/test/stroke_X_test.csv")
-        save_to_csv(y_train, "s3://data/final/train/stroke_y_train.csv")
-        save_to_csv(y_test, "s3://data/final/test/stroke_y_test.csv")
+        wr.s3.to_csv(df=X_train, path=f"{data_final_path}{consts.TRAIN}/X_{consts.TRAIN}.csv", index=False)
+        wr.s3.to_csv(df=X_test, path=f"{data_final_path}{consts.TEST}/X_{consts.TEST}.csv", index=False)
+        wr.s3.to_csv(df=y_train, path=f"{data_final_path}{consts.TRAIN}/y_{consts.TRAIN}.csv", index=False)
+        wr.s3.to_csv(df=y_test, path=f"{data_final_path}{consts.TEST}/y_{consts.TEST}.csv", index=False)
+
 
     @task.virtualenv(
         task_id="normalize_numerical_features",
@@ -217,23 +227,22 @@ def process_etl_stroke_data():
         """
         Standardization of numerical columns
         """
-        import json
+        import sys
+        sys.path.append("/opt/airflow/dags")
         import mlflow
         import boto3
-        import botocore.exceptions
-
         import awswrangler as wr
         import pandas as pd
 
         from sklearn.preprocessing import StandardScaler
 
-        def save_to_csv(df, path):
-            wr.s3.to_csv(df=df,
-                         path=path,
-                         index=False)
+        import utils.etl_utils as etl
+        import utils.constants as consts
 
-        X_train = wr.s3.read_csv("s3://data/final/train/stroke_X_train.csv")
-        X_test  = wr.s3.read_csv("s3://data/final/test/stroke_X_test.csv")
+        path_train = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}{consts.TRAIN}/X_{consts.TRAIN}.csv"
+        path_test = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}{consts.TEST}/X_{consts.TEST}.csv"
+        X_train = wr.s3.read_csv(s3_path=path_train)
+        X_test  = wr.s3.read_csv(s3_path=path_test)
 
         sc_X = StandardScaler(with_mean=True, with_std=True)
         X_train_arr = sc_X.fit_transform(X_train)
@@ -242,33 +251,21 @@ def process_etl_stroke_data():
         X_train = pd.DataFrame(X_train_arr, columns=X_train.columns)
         X_test = pd.DataFrame(X_test_arr, columns=X_test.columns)
 
-        save_to_csv(X_train, "s3://data/final/train/stroke_X_train.csv")
-        save_to_csv(X_test, "s3://data/final/test/stroke_X_test.csv")
+        wr.s3.to_csv(df=X_train, path=path_train, index=False)
+        wr.s3.to_csv(df=X_test, path=path_test, index=False)
 
         # Save information of the dataset
         client = boto3.client('s3')
 
-        try:
-            client.head_object(Bucket='data', Key='data_info/data.json')
-            result = client.get_object(Bucket='data', Key='data_info/data.json')
-            text = result["Body"].read().decode()
-            data_dict = json.loads(text)
-        except botocore.exceptions.ClientError as e:
-                # Something else has gone wrong.
-                raise e
+        data_dict = etl.get_metadata_info(client)
 
         # Upload JSON String to an S3 Object
         data_dict['standard_scaler_mean'] = sc_X.mean_.tolist()
         data_dict['standard_scaler_std'] = sc_X.scale_.tolist()
-        data_string = json.dumps(data_dict, indent=2)
 
-        client.put_object(
-            Bucket='data',
-            Key='data_info/data.json',
-            Body=data_string
-        )
+        etl.save_metadata_info(client, data_dict)
 
-        mlflow.set_tracking_uri('http://mlflow:5000')
+        mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
         experiment = mlflow.set_experiment("Stroke Prediction")
 
         # Obtain the last experiment run_id to log the new information
@@ -283,7 +280,7 @@ def process_etl_stroke_data():
             mlflow.log_param("Standard Scaler scale values", sc_X.scale_)
 
 
-    get_data() >> make_dummies_variables() >> split_dataset() >> normalize_data()
+    upload_original_csv_if_needed() >> null_imputation() >> make_dummies_variables() >> split_dataset() >> normalize_data()
 
 
 dag = process_etl_stroke_data()

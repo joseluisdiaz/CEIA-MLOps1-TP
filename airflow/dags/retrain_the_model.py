@@ -1,6 +1,7 @@
 import datetime
 
 from airflow.decorators import dag, task
+import utils.constants as consts
 
 markdown_text = """
 ### Re-Train the Model for Heart Disease Data
@@ -45,11 +46,12 @@ def processing_dag():
         from sklearn.base import clone
         from sklearn.metrics import f1_score
         from mlflow.models import infer_signature
+        import utils.etl_utils as etl
 
-        mlflow.set_tracking_uri('http://mlflow:5000')
+        mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
 
         def load_the_champion_model():
-            model_name = "heart_disease_model_prod"
+            model_name = "stroke_detection_model_prod"
             alias = "champion"
 
             champion_version = mlflow.sklearn.load_model(f"models:/{model_name}@{alias}")
@@ -57,20 +59,21 @@ def processing_dag():
             return champion_version
 
         def load_the_train_test_data():
-            X_train = wr.s3.read_csv("s3://data/final/train/heart_X_train.csv")
-            y_train = wr.s3.read_csv("s3://data/final/train/heart_y_train.csv")
-            X_test = wr.s3.read_csv("s3://data/final/test/heart_X_test.csv")
-            y_test = wr.s3.read_csv("s3://data/final/test/heart_y_test.csv")
+            data_final_path = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}"
+            X_train = etl.load_data(f"{data_final_path}/{consts.TRAIN}/X_train.csv")
+            y_train = etl.load_data(f"{data_final_path}/{consts.TRAIN}/y_train.csv")
+            X_test = etl.load_data(f"{data_final_path}/{consts.TEST}/X_test.csv")
+            y_test = etl.load_data(f"{data_final_path}/{consts.TEST}/y_test.csv")
 
             return X_train, y_train, X_test, y_test
 
         def mlflow_track_experiment(model, X):
             # Track the experiment
-            experiment = mlflow.set_experiment("Heart Disease")
+            experiment = mlflow.set_experiment("Stroke Detection")
 
             with mlflow.start_run(run_name='Challenger_run_' + datetime.datetime.today().strftime('%Y/%m/%d-%H:%M:%S"'),
                                     experiment_id=experiment.experiment_id,
-                                    tags={"experiment": "challenger models", "dataset": "Heart disease"},
+                                    tags={"experiment": "challenger models", "dataset": "Stroke Detection"},
                                     log_system_metrics=True
             ) as run:
 
@@ -89,7 +92,7 @@ def processing_dag():
                     artifact_path=artifact_path,
                     signature=signature,
                     serialization_format='cloudpickle',
-                    registered_model_name="heart_disease_model_dev",
+                    registered_model_name="stroke_detection_model_dev",
                     metadata={"model_data_version": 1}
                 )
 
@@ -100,7 +103,7 @@ def processing_dag():
 
         def register_challenger(model, f1_score, model_uri):
             client = mlflow.MlflowClient()
-            name = "heart_disease_model_prod"
+            name = "stroke_detection_model_prod"
 
             # Save the model params as tags
             tags = model.get_params()
@@ -153,19 +156,21 @@ def processing_dag():
         import awswrangler as wr
 
         from sklearn.metrics import f1_score
+        import etl_process as etl
 
-        mlflow.set_tracking_uri('http://mlflow:5000')
+        mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
 
         def load_the_model(alias):
-            model_name = "heart_disease_model_prod"
+            model_name = "stroke_detection_model_prod"
 
             model = mlflow.sklearn.load_model(f"models:/{model_name}@{alias}")
 
             return model
 
         def load_the_test_data():
-            X_test = wr.s3.read_csv("s3://data/final/test/heart_X_test.csv")
-            y_test = wr.s3.read_csv("s3://data/final/test/heart_y_test.csv")
+            data_final_path = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}"
+            X_test = etl.load_data(f"{data_final_path}/{consts.TEST}/X_{consts.TEST}.csv")
+            y_test = etl.load_data(f"{data_final_path}/{consts.TEST}/y_{consts.TEST}.csv")
 
             return X_test, y_test
 
@@ -206,7 +211,7 @@ def processing_dag():
         y_pred_challenger = challenger_model.predict(X_test)
         f1_score_challenger = f1_score(y_test.to_numpy().ravel(), y_pred_challenger)
 
-        experiment = mlflow.set_experiment("Heart Disease")
+        experiment = mlflow.set_experiment("Stroke Detection")
 
         # Obtain the last experiment run_id to log the new information
         list_run = mlflow.search_runs([experiment.experiment_id], output_format="list")
@@ -220,7 +225,7 @@ def processing_dag():
             else:
                 mlflow.log_param("Winner", 'Champion')
 
-        name = "heart_disease_model_prod"
+        name = "stroke_detection_model_prod"
         if f1_score_challenger > f1_score_champion:
             promote_challenger(name)
         else:
