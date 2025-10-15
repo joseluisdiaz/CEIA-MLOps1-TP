@@ -25,7 +25,7 @@ default_args = {
     dag_id="process_etl_stroke_data",
     description="ETL process for stroke data, separating the dataset into training and testing sets.",
     doc_md=markdown_text,
-    tags=["ETL", "Stroke Prediction"],
+    tags=["ETL", "Stroke"],
     default_args=default_args,
     catchup=False,
 )
@@ -123,7 +123,7 @@ def process_etl_stroke_data():
         dataset = wr.s3.read_csv(data_original_path)
 
         # Generating dummies variables
-        with open(consts.CATEGORICAL_FEATURES_FILE, "r") as f:
+        with open(f"{consts.OPT_DAGS}{consts.CATEGORICAL_FEATURES_FILE}", "r") as f:
             categorical_features = [line.strip() for line in f if line.strip()]
         dataset[categorical_features] = dataset[categorical_features].astype(str)
         dataset_with_dummies = pd.get_dummies(data=dataset,
@@ -160,11 +160,11 @@ def process_etl_stroke_data():
         etl.save_metadata_info(client, data_dict)
 
         mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
-        experiment = mlflow.set_experiment("Stroke Prediction")
+        experiment = mlflow.set_experiment("Stroke")
 
         mlflow.start_run(run_name='ETL_run_' + datetime.datetime.today().strftime('%Y/%m/%d-%H:%M:%S"'),
                          experiment_id=experiment.experiment_id,
-                         tags={"experiment": "etl", "dataset": "Stroke Prediction"},
+                         tags={"experiment": "etl", "dataset": "Stroke"},
                          log_system_metrics=True)
 
         mlflow_dataset = mlflow.data.from_pandas(dataset,
@@ -264,7 +264,7 @@ def process_etl_stroke_data():
         etl.save_metadata_info(client, data_dict)
 
         mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
-        experiment = mlflow.set_experiment("Stroke Prediction")
+        experiment = mlflow.set_experiment("Stroke")
 
         # Obtain the last experiment run_id to log the new information
         list_run = mlflow.search_runs([experiment.experiment_id], output_format="list")

@@ -25,7 +25,7 @@ default_args = {
     description="Re-train the model based on new data, tests the previous model, and put in production the new one if "
                 "it performs better than the old one",
     doc_md=markdown_text,
-    tags=["Re-Train", "Stroke Prediction"],
+    tags=["Re-Train", "Stroke"],
     default_args=default_args,
     catchup=False,
 )
