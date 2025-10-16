@@ -93,7 +93,39 @@ def process_etl_stroke_data():
 
         wr.s3.to_csv(df=dataset, path=data_end_path, index=False)
 
-        
+
+    @task.virtualenv(
+        task_id="create_mlflow_experiment",
+        requirements=["mlflow==2.10.2"],
+        system_site_packages=True
+    )
+    def create_mlflow_experiment():
+        import sys
+        sys.path.append("/opt/airflow/dags")
+        import mlflow
+        from mlflow.tracking import MlflowClient
+        from mlflow.entities import ViewType
+        import utils.constants as consts
+
+        mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
+        client = MlflowClient(mlflow.get_tracking_uri())
+        name = "Stroke"
+
+        # 1) Si el experiment ya existe, terminar
+        for e in client.search_experiments(view_type=ViewType.ACTIVE_ONLY):
+            if e.name == name:
+                return
+
+        # 2) Si el experiment existe pero está "deleted", restaurarlo y terminar
+        deleted = [e for e in client.search_experiments(view_type=ViewType.DELETED_ONLY) if e.name == name]
+        if deleted:
+            client.restore_experiment(deleted[0].experiment_id)
+            return
+
+        # 3) Si el experiment no existe, crearlo
+        mlflow.set_experiment(name)
+
+
     @task.virtualenv(
         task_id="make_dummies_variables",
         requirements=["awswrangler==3.6.0", "mlflow==2.10.2"],
@@ -278,7 +310,7 @@ def process_etl_stroke_data():
             mlflow.log_param("Standard Scaler scale values", sc_X.scale_)
 
 
-    upload_original_csv_if_needed() >> null_imputation() >> make_dummies_variables() >> split_dataset() >> normalize_data()
+    upload_original_csv_if_needed() >> null_imputation() >> create_mlflow_experiment() >> make_dummies_variables() >> split_dataset() >> normalize_data()
 
 
 dag = process_etl_stroke_data()
