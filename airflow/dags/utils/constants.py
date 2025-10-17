@@ -1,4 +1,10 @@
 # utils/costants.py
+"""
+Constants module for pipeline configuration.
+
+This module contains all the configuration constants used across the Airflow DAGs,
+including S3 paths, bucket names, file names, and machine learning parameters.
+"""
 
 # Paths
 S3_ENDPOINT = "http://minio:9000"

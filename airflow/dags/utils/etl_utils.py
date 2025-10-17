@@ -1,3 +1,10 @@
+"""
+ETL utility functions for data processing and metadata management.
+
+This module provides helper functions for handling metadata information
+stored in S3, including reading and writing data dictionaries.
+"""
+
 import json
 import pandas as pd
 #import awswrangler as wr

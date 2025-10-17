@@ -30,6 +30,17 @@ default_args = {
     catchup=False,
 )
 def process_etl_stroke_data():
+    """
+    Main DAG function for ETL processing of stroke prediction dataset.
+    
+    This function orchestrates the complete ETL pipeline including:
+    - Uploading original CSV to S3
+    - Null value imputation
+    - Creating MLflow experiment
+    - Creating dummy variables for categorical features
+    - Splitting dataset into train/test sets
+    - Normalizing numerical features
+    """
 
     @task.virtualenv(
         task_id="upload_original_csv_if_needed",
@@ -37,6 +48,12 @@ def process_etl_stroke_data():
         system_site_packages=True
     )
     def upload_original_csv_if_needed():
+        """
+        Upload the original stroke dataset CSV file to S3 if it doesn't already exist.
+        
+        Checks if the file exists in S3, and if not, reads it from the local path
+        and uploads it to the raw data bucket.
+        """
         import sys
         sys.path.append("/opt/airflow/dags")
         import awswrangler as wr
@@ -100,6 +117,13 @@ def process_etl_stroke_data():
         system_site_packages=True
     )
     def create_mlflow_experiment():
+        """
+        Create or restore the MLflow experiment for stroke prediction.
+        
+        Checks if the experiment exists (active or deleted) and creates or restores
+        it as needed. This ensures the experiment is available for logging metrics
+        and artifacts.
+        """
         import sys
         sys.path.append("/opt/airflow/dags")
         import mlflow

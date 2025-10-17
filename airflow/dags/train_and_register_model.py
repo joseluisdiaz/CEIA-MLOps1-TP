@@ -26,6 +26,13 @@ default_args = {
     catchup=False,
 )
 def train_and_register_model():
+    """
+    Main DAG function for training and registering the stroke prediction model.
+    
+    This function orchestrates the model training process using PyCaret,
+    evaluates the model, and registers it in the MLflow model registry with
+    appropriate versioning and aliasing.
+    """
 
 
     @task.virtualenv(
@@ -39,9 +46,27 @@ def train_and_register_model():
         system_site_packages=True
     )
     def train_and_register_model_task():
+        """
+        Train and register the stroke prediction model using PyCaret.
+        
+        Loads the preprocessed data, trains a Naive Bayes model using PyCaret,
+        evaluates it, and registers it in MLflow with champion/challenger logic.
+        """
 
 
         def _train_model(log):
+            """
+            Train the stroke prediction model using PyCaret.
+            
+            Loads training and test data from S3, sets up PyCaret environment,
+            trains a Naive Bayes classifier, and returns the model with metrics.
+            
+            Args:
+                log: Logger object for logging training progress.
+                
+            Returns:
+                tuple: (model, accuracy, f1_score) - trained model and its metrics.
+            """
 
             path_X_train = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TRAIN}/X_{consts.TRAIN}.csv"
             path_y_train = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TRAIN}/y_{consts.TRAIN}.csv"
@@ -85,9 +110,29 @@ def train_and_register_model():
 
 
         def _register_model(log, model, acc, f1):
+            """
+            Register the trained model in MLflow model registry.
+            
+            Creates or updates the experiment, logs the model with metrics,
+            registers it as a new version, and manages champion/challenger aliases
+            based on performance comparison.
+            
+            Args:
+                log: Logger object for logging registration progress.
+                model: The trained model object to register.
+                acc (float): Accuracy metric of the model.
+                f1 (float): F1 score metric of the model.
+            """
             log.info("_register_model: started")
             
             def _set_experiment(client, name):
+                """
+                Create or restore an MLflow experiment.
+                
+                Args:
+                    client: MLflow client instance.
+                    name (str): Name of the experiment.
+                """
                 # 1) Si el experiment ya existe, terminar
                 for e in client.search_experiments(view_type=ViewType.ACTIVE_ONLY):
                     if e.name == name:
@@ -103,12 +148,35 @@ def train_and_register_model():
                 mlflow.set_experiment(name)
 
             def _safe_float(x, default=0.0):
+                """
+                Safely convert a value to float with a default fallback.
+                
+                Args:
+                    x: Value to convert to float.
+                    default (float): Default value if conversion fails.
+                    
+                Returns:
+                    float: Converted value or default.
+                """
                 try:
                     return float(x)
                 except Exception:
                     return default
                 
             def _champion_superado(f1, champion_f1):
+                """
+                Determine if the challenger surpasses the champion.
+                
+                Note: Currently simulates the comparison randomly for demonstration purposes.
+                In production, this should return (f1 > champion_f1).
+                
+                Args:
+                    f1 (float): F1 score of the challenger model.
+                    champion_f1 (float): F1 score of the champion model.
+                    
+                Returns:
+                    bool: True if challenger wins, False otherwise.
+                """
                 # El champion es superado si f1 > champion_f1. En lugar de retornar esa evaluacion, simulamos de forma aleatoria.
                 import random
                 return random.choice([True, False])
