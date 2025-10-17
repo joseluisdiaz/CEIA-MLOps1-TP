@@ -1,7 +1,6 @@
 import datetime
 
 from airflow.decorators import dag, task
-import utils.constants as consts
 
 markdown_text = """
 ### Re-Train the Model for Stroke Prediction Data
@@ -30,202 +29,165 @@ default_args = {
     catchup=False,
 )
 def processing_dag():
-
     @task.virtualenv(
         task_id="train_the_challenger_model",
-        requirements=["scikit-learn==1.3.2",
-                      "mlflow==2.10.2",
-                      "awswrangler==3.6.0"],
+        requirements=[
+            "scikit-learn==1.3.2",
+            "mlflow==2.10.2",
+            "awswrangler==3.6.0"
+        ],
         system_site_packages=True
     )
     def train_the_challenger_model():
-        import datetime
+        import sys
+        sys.path.append("/opt/airflow/dags")
+        import datetime as _dt
         import mlflow
         import awswrangler as wr
-
+        import utils.constants as consts
         from sklearn.base import clone
-        from sklearn.metrics import f1_score
+        from sklearn.metrics import f1_score as f1_metric
         from mlflow.models import infer_signature
-        import utils.etl_utils as etl
 
         mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
 
         def load_the_champion_model():
-            model_name = "stroke_detection_model_prod"
+            model_name = "stroke_prediction_model_prod"
             alias = "champion"
-
-            champion_version = mlflow.sklearn.load_model(f"models:/{model_name}@{alias}")
-
-            return champion_version
+            return mlflow.sklearn.load_model(f"models:/{model_name}@{alias}")
 
         def load_the_train_test_data():
-            data_final_path = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}"
-            X_train = etl.load_data(f"{data_final_path}/{consts.TRAIN}/X_train.csv")
-            y_train = etl.load_data(f"{data_final_path}/{consts.TRAIN}/y_train.csv")
-            X_test = etl.load_data(f"{data_final_path}/{consts.TEST}/X_test.csv")
-            y_test = etl.load_data(f"{data_final_path}/{consts.TEST}/y_test.csv")
-
+            base = f"{consts.S3}{consts.BUCKET_FINAL}"
+            X_train = wr.s3.read_csv(f"{base}{consts.TRAIN}/X_{consts.TRAIN}.csv")
+            y_train = wr.s3.read_csv(f"{base}{consts.TRAIN}/y_{consts.TRAIN}.csv")
+            X_test = wr.s3.read_csv(f"{base}{consts.TEST}/X_{consts.TEST}.csv")
+            y_test = wr.s3.read_csv(f"{base}{consts.TEST}/y_{consts.TEST}.csv")
             return X_train, y_train, X_test, y_test
 
         def mlflow_track_experiment(model, X):
-            # Track the experiment
-            experiment = mlflow.set_experiment("Stroke Detection")
-
-            with mlflow.start_run(run_name='Challenger_run_' + datetime.datetime.today().strftime('%Y/%m/%d-%H:%M:%S"'),
-                                    experiment_id=experiment.experiment_id,
-                                    tags={"experiment": "challenger models", "dataset": "Stroke Detection"},
-                                    log_system_metrics=True
+            experiment = mlflow.set_experiment("stroke_training")
+            with mlflow.start_run(
+                run_name='Challenger_run_' + _dt.datetime.today().strftime('%Y/%m/%d-%H:%M:%S"'),
+                experiment_id=experiment.experiment_id,
+                tags={"experiment": "challenger models", "dataset": "Stroke Detection"},
+                log_system_metrics=True
             ) as run:
-
-                params = model.get_params()
+                params = {}
+                try:
+                    params = model.get_params()
+                except Exception:
+                    pass
                 params["model"] = type(model).__name__
+                mlflow.log_params({k: str(v) for k, v in params.items()})
 
-                mlflow.log_params(params)
-
-                # Save the artifact of the challenger model
                 artifact_path = "model"
-
-                signature = infer_signature(X, model.predict(X))
+                try:
+                    signature = infer_signature(X, model.predict(X))
+                except Exception:
+                    signature = None
 
                 mlflow.sklearn.log_model(
                     sk_model=model,
                     artifact_path=artifact_path,
                     signature=signature,
                     serialization_format='cloudpickle',
-                    registered_model_name="stroke_detection_model_dev",
+                    registered_model_name=None,
                     metadata={"model_data_version": 1}
                 )
+                return f"runs:/{run.info.run_id}/{artifact_path}"
 
-                # Obtain the model URI
-                model_uri = f"runs:/{run.info.run_id}/{artifact_path}"
-                return model_uri
-
-
-        def register_challenger(model, f1_score, model_uri):
+        def register_challenger(model, f1_value, model_uri):
             client = mlflow.MlflowClient()
-            name = "stroke_detection_model_prod"
-
-            # Save the model params as tags
-            tags = model.get_params()
+            name = "stroke_prediction_model_prod"
+            tags = {}
+            try:
+                tags = model.get_params()
+            except Exception:
+                pass
             tags["model"] = type(model).__name__
-            tags["f1-score"] = f1_score
-
-            # Save the version of the model
+            tags["f1-score"] = float(f1_value)
             result = client.create_model_version(
                 name=name,
                 source=model_uri,
                 run_id=model_uri.split("/")[1],
-                tags=tags
+                tags={k: str(v) for k, v in tags.items()}
             )
-
-            # Save the alias as challenger
             client.set_registered_model_alias(name, "challenger", result.version)
 
-        # Load the champion model
         champion_model = load_the_champion_model()
-
-        # Clone the model
         challenger_model = clone(champion_model)
-
-        # Load the dataset
         X_train, y_train, X_test, y_test = load_the_train_test_data()
-
-        # Fit the training model
         challenger_model.fit(X_train, y_train.to_numpy().ravel())
-
-        # Obtain the metric of the model
         y_pred = challenger_model.predict(X_test)
-        f1_score = f1_score(y_test.to_numpy().ravel(), y_pred)
-
-        # Track the experiment
+        f1 = f1_metric(y_test.to_numpy().ravel(), y_pred)
         artifact_uri = mlflow_track_experiment(challenger_model, X_train)
-
-        # Record the model
-        register_challenger(challenger_model, f1_score, artifact_uri)
-
+        register_challenger(challenger_model, f1, artifact_uri)
 
     @task.virtualenv(
         task_id="evaluate_champion_challenge",
-        requirements=["scikit-learn==1.3.2",
-                      "mlflow==2.10.2",
-                      "awswrangler==3.6.0"],
+        requirements=[
+            "scikit-learn==1.3.2",
+            "mlflow==2.10.2",
+            "awswrangler==3.6.0"
+        ],
         system_site_packages=True
     )
     def evaluate_champion_challenge():
+        import sys
+        sys.path.append("/opt/airflow/dags")
         import mlflow
         import awswrangler as wr
-
-        from sklearn.metrics import f1_score
-        import etl_process as etl
+        import utils.constants as consts
+        from sklearn.metrics import f1_score as f1_metric
 
         mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
 
         def load_the_model(alias):
-            model_name = "stroke_detection_model_prod"
-
-            model = mlflow.sklearn.load_model(f"models:/{model_name}@{alias}")
-
-            return model
+            model_name = "stroke_prediction_model_prod"
+            return mlflow.sklearn.load_model(f"models:/{model_name}@{alias}")
 
         def load_the_test_data():
-            data_final_path = f"{consts.S3}{consts.BUCKET}/{consts.DATA_FINAL_PATH}"
-            X_test = etl.load_data(f"{data_final_path}/{consts.TEST}/X_{consts.TEST}.csv")
-            y_test = etl.load_data(f"{data_final_path}/{consts.TEST}/y_{consts.TEST}.csv")
-
+            base = f"{consts.S3}{consts.BUCKET_FINAL}"
+            X_test = wr.s3.read_csv(f"{base}{consts.TEST}/X_{consts.TEST}.csv")
+            y_test = wr.s3.read_csv(f"{base}{consts.TEST}/y_{consts.TEST}.csv")
             return X_test, y_test
 
         def promote_challenger(name):
             client = mlflow.MlflowClient()
-
-            # Demote the champion
-            client.delete_registered_model_alias(name, "champion")
-
-            # Load the challenger from registry
+            # Remove champion alias
+            try:
+                client.delete_registered_model_alias(name, "champion")
+            except Exception:
+                pass
             challenger_version = client.get_model_version_by_alias(name, "challenger")
-
-            # delete the alias of challenger
+            # Remove challenger alias and promote
             client.delete_registered_model_alias(name, "challenger")
-
-            # Transform in champion
             client.set_registered_model_alias(name, "champion", challenger_version.version)
 
         def demote_challenger(name):
             client = mlflow.MlflowClient()
+            try:
+                client.delete_registered_model_alias(name, "challenger")
+            except Exception:
+                pass
 
-            # delete the alias of challenger
-            client.delete_registered_model_alias(name, "challenger")
-
-        # Load the champion model
         champion_model = load_the_model("champion")
-
-        # Load the challenger model
         challenger_model = load_the_model("challenger")
-
-        # Load the dataset
         X_test, y_test = load_the_test_data()
-
-        # Obtain the metric of the models
         y_pred_champion = champion_model.predict(X_test)
-        f1_score_champion = f1_score(y_test.to_numpy().ravel(), y_pred_champion)
-
+        f1_score_champion = f1_metric(y_test.to_numpy().ravel(), y_pred_champion)
         y_pred_challenger = challenger_model.predict(X_test)
-        f1_score_challenger = f1_score(y_test.to_numpy().ravel(), y_pred_challenger)
+        f1_score_challenger = f1_metric(y_test.to_numpy().ravel(), y_pred_challenger)
 
-        experiment = mlflow.set_experiment("Stroke Detection")
+        experiment = mlflow.set_experiment("stroke_training")
+        runs = mlflow.search_runs([experiment.experiment_id], output_format="list")
+        if runs:
+            with mlflow.start_run(run_id=runs[0].info.run_id):
+                mlflow.log_metric("test_f1_challenger", float(f1_score_challenger))
+                mlflow.log_metric("test_f1_champion", float(f1_score_champion))
+                mlflow.log_param("Winner", 'Challenger' if f1_score_challenger > f1_score_champion else 'Champion')
 
-        # Obtain the last experiment run_id to log the new information
-        list_run = mlflow.search_runs([experiment.experiment_id], output_format="list")
-
-        with mlflow.start_run(run_id=list_run[0].info.run_id):
-            mlflow.log_metric("test_f1_challenger", f1_score_challenger)
-            mlflow.log_metric("test_f1_champion", f1_score_champion)
-
-            if f1_score_challenger > f1_score_champion:
-                mlflow.log_param("Winner", 'Challenger')
-            else:
-                mlflow.log_param("Winner", 'Champion')
-
-        name = "stroke_detection_model_prod"
+        name = "stroke_prediction_model_prod"
         if f1_score_challenger > f1_score_champion:
             promote_challenger(name)
         else:
