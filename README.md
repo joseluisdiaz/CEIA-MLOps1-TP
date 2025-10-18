@@ -39,11 +39,11 @@ El orden para probar el funcionamiento completo es el siguiente:
 
 1. **Levantar el sistema**: 
     a. Ejecuta `docker compose build airflow-worker airflow-scheduler airflow-apiserver airflow-dag-processor` para construir las imágenes Docker para los distintos servicios que forman parte del despliegue de Apache Airflow.
-    b. Ejecuta `docker compose --profile all up` para iniciar todos los servicios (Airflow, MLflow, MinIO, PostgreSQL, FastAPI).
+    b. Ejecuta `docker compose up -d airflow-worker airflow-scheduler airflow-apiserver airflow-dag-processor` para iniciar todos los servicios (Airflow, MLflow, MinIO, PostgreSQL, FastAPI).
 
 2. **Ejecutar el ETL**: Tan pronto como se levante el sistema multi-contenedor, ejecuta en Airflow el DAG llamado `process_etl_stroke_data`. De esta manera se crearán los datos procesados en el bucket `s3://data`.
 
-3. **Entrenar el modelo inicial**: Ejecuta el DAG `train_and_register_model` en Airflow para entrenar el primer modelo y registrarlo como champion en MLflow. Alternativamente, puedes ejecutar la notebook `experiment_mlflow.ipynb` (ubicada en `notebook_example`) para realizar la búsqueda de hiperparámetros con Optuna y entrenar el mejor modelo.
+3. **Entrenar el modelo inicial**: Ejecuta el DAG `train_and_register_model` en Airflow para entrenar el primer modelo y registrarlo como champion en MLflow. Alternativamente, puedes ejecutar la notebook `experiment_mlflow.ipynb` (ubicada en `notebook`) para realizar la búsqueda de hiperparámetros con Optuna y entrenar el mejor modelo.
 
 4. **Utilizar el servicio de API**: Una vez entrenado el modelo, utiliza el servicio de API para realizar predicciones.
 
