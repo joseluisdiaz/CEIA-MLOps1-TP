@@ -13,7 +13,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing_extensions import Annotated
-from lib import predict as model_predict
+from src import predict as model_predict
 
 app = FastAPI()
 
