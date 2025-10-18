@@ -1,0 +1,7 @@
+airflow/logs
+airflow/logs/**
+**/__pycache__/
+*.pyc
+.git
+.gitignore
+.env
