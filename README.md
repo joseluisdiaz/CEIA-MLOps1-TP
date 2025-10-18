@@ -38,7 +38,7 @@ Las flechas verdes y violetas representan las conexiones entre los diferentes se
 El orden para probar el funcionamiento completo es el siguiente:
 
 1. **Levantar el sistema**: 
-- Ejecuta `docker compose build airflow-worker airflow-scheduler airflow-apiserver airflow-dag-processor` para construir las imágenes Docker para los distintos servicios que forman parte del despliegue de Apache Airflow.
+- Ejecuta `docker compose build airflow-worker airflow-scheduler airflow-apiserver airflow-dag-processor fastapi` para construir las imágenes Docker para los distintos servicios que forman parte del despliegue de Apache Airflow.
 - Ejecuta `docker compose --profile all up -d` para iniciar todos los servicios.
 
 3. **Ejecutar el ETL**: Tan pronto como se levante el sistema multi-contenedor, ejecuta en Airflow el DAG llamado `process_etl_stroke_data`. De esta manera se crearán los datos procesados en el bucket `s3://data`.
