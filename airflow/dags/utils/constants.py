@@ -1,4 +1,3 @@
-# utils/costants.py
 """
 Constants module for pipeline configuration.
 
