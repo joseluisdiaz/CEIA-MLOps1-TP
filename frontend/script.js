@@ -49,14 +49,17 @@ function getFormData() {
     const data = {};
     
     // Lista de campos numéricos que deben ser convertidos
-    const numericFields = ['age', 'trestbps', 'chol', 'thalach', 'oldpeak'];
-    const integerFields = ['sex', 'cp', 'fbs', 'restecg', 'exang', 'slope', 'ca', 'thal'];
+    const numericFields = ['age', 'avg_glucose_level', 'bmi'];
+    const integerFields = ['hypertension', 'heart_disease'];
+    const stringFields = ['gender', 'ever_married', 'work_type', 'Residence_type', 'smoking_status'];
     
     for (let [key, value] of formData.entries()) {
         if (numericFields.includes(key)) {
             data[key] = parseFloat(value);
         } else if (integerFields.includes(key)) {
             data[key] = parseInt(value);
+        } else if (stringFields.includes(key)) {
+            data[key] = value;
         } else {
             data[key] = value;
         }
@@ -109,16 +112,16 @@ function formatValidationErrors(errors) {
  * Muestra el resultado de la predicción
  */
 function showResult(prediction) {
-    const hasHeartDisease = prediction.prediction;
+    const hasStroke = prediction.prediction;
     const message = prediction.description;
     
-    resultDiv.className = `result ${hasHeartDisease ? 'warning' : 'success'}`;
+    resultDiv.className = `result ${hasStroke ? 'warning' : 'success'}`;
     
-    const icon = hasHeartDisease ? '⚠️' : '✅';
-    const title = hasHeartDisease ? 'RIESGO CARDÍACO DETECTADO' : 'CORAZÓN SALUDABLE';
-    const subtitle = hasHeartDisease ? 
-        'Se recomienda consultar con un cardiólogo inmediatamente' :
-        'Los parámetros cardíacos están dentro de rangos normales';
+    const icon = hasStroke ? '⚠️' : '✅';
+    const title = hasStroke ? 'RIESGO DE ACV DETECTADO' : 'PACIENTE SALUDABLE';
+    const subtitle = hasStroke ? 
+        'Se recomienda consultar con un neurólogo inmediatamente' :
+        'Los parámetros analizados están dentro de rangos normales';
     
     resultContent.innerHTML = `
         <div class="result-icon">${icon}</div>
@@ -246,21 +249,18 @@ function addExampleDataButton() {
  * Llena el formulario con datos de ejemplo
  */
 function fillExampleData() {
-    // Datos de ejemplo del modelo FastAPI
+    // Datos de ejemplo del modelo de stroke
     const exampleData = {
-        age: 67,
-        sex: 1,
-        cp: 4,
-        trestbps: 160.0,
-        chol: 286.0,
-        fbs: 0,
-        restecg: 2,
-        thalach: 108.0,
-        exang: 1,
-        oldpeak: 1.5,
-        slope: 2,
-        ca: 3,
-        thal: 3
+        gender: "Male",
+        age: 67.0,
+        hypertension: 0,
+        heart_disease: 1,
+        ever_married: "Yes",
+        work_type: "Private",
+        Residence_type: "Urban",
+        avg_glucose_level: 228,
+        bmi: 36.6,
+        smoking_status: "formerly smoked"
     };
     
     // Llenar los campos del formulario
@@ -312,12 +312,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Mensaje de bienvenida en consola
-    console.log('🫀 Predictor de Enfermedad Cardíaca cargado correctamente');
+    console.log('� Predictor de Accidente Cerebrovascular cargado correctamente');
     console.log(`📡 API configurada en: ${API_BASE_URL}`);
 });
 
 // Hacer disponibles algunas funciones globalmente para debugging
-window.heartDiseasePredictor = {
+window.strokePredictor = {
     clearForm,
     fillExampleData,
     getFormData,

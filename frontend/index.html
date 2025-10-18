@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Predictor de Enfermedad Cardíaca</title>
+    <title>Predictor de Accidente Cerebrovascular</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>🫀 Predictor de Enfermedad Cardíaca</h1>
-        <p class="subtitle">Ingrese los datos del paciente para evaluar el riesgo de enfermedad cardíaca</p>
+        <h1>� Predictor de Accidente Cerebrovascular</h1>
+        <p class="subtitle">Ingrese los datos del paciente para evaluar el riesgo de ACV (Stroke)</p>
         
         <form id="predictionForm" class="form">
             <div class="form-grid">
@@ -18,39 +18,73 @@
                     <h3>📋 Información Básica</h3>
                     
                     <div class="input-group">
-                        <label for="age">Edad:</label>
-                        <input type="number" id="age" name="age" min="0" max="150" required>
-                        <small>Entre 0 y 150 años</small>
+                        <label for="gender">Género:</label>
+                        <select id="gender" name="gender" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Female">Femenino</option>
+                            <option value="Male">Masculino</option>
+                            <option value="Other">Otro</option>
+                        </select>
                     </div>
 
                     <div class="input-group">
-                        <label for="sex">Sexo:</label>
-                        <select id="sex" name="sex" required>
+                        <label for="age">Edad:</label>
+                        <input type="number" id="age" name="age" min="0" max="99" step="0.1" required>
+                        <small>Entre 0 y 99 años</small>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="ever_married">Estado Civil:</label>
+                        <select id="ever_married" name="ever_married" required>
                             <option value="">Seleccionar...</option>
-                            <option value="0">Femenino</option>
-                            <option value="1">Masculino</option>
+                            <option value="No">Soltero/a</option>
+                            <option value="Yes">Casado/a</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- Síntomas y Dolor -->
+                <!-- Información Laboral y Residencial -->
                 <div class="form-section">
-                    <h3>💔 Síntomas Cardíacos</h3>
+                    <h3>🏢 Información Laboral</h3>
                     
                     <div class="input-group">
-                        <label for="cp">Tipo de Dolor de Pecho:</label>
-                        <select id="cp" name="cp" required>
+                        <label for="work_type">Tipo de Trabajo:</label>
+                        <select id="work_type" name="work_type" required>
                             <option value="">Seleccionar...</option>
-                            <option value="1">Angina Típica</option>
-                            <option value="2">Angina Atípica</option>
-                            <option value="3">Dolor No Anginoso</option>
-                            <option value="4">Asintomático</option>
+                            <option value="Private">Privado</option>
+                            <option value="Self-employed">Independiente</option>
+                            <option value="Govt_job">Trabajo Gubernamental</option>
+                            <option value="children">Menor (niño/a)</option>
+                            <option value="Never_worked">Nunca ha trabajado</option>
                         </select>
                     </div>
 
                     <div class="input-group">
-                        <label for="exang">Angina Inducida por Ejercicio:</label>
-                        <select id="exang" name="exang" required>
+                        <label for="Residence_type">Tipo de Residencia:</label>
+                        <select id="Residence_type" name="Residence_type" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Urban">Urbana</option>
+                            <option value="Rural">Rural</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Condiciones Médicas -->
+                <div class="form-section">
+                    <h3>🏥 Condiciones Médicas</h3>
+                    
+                    <div class="input-group">
+                        <label for="hypertension">Hipertensión:</label>
+                        <select id="hypertension" name="hypertension" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="0">No</option>
+                            <option value="1">Sí</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="heart_disease">Enfermedad Cardíaca:</label>
+                        <select id="heart_disease" name="heart_disease" required>
                             <option value="">Seleccionar...</option>
                             <option value="0">No</option>
                             <option value="1">Sí</option>
@@ -58,96 +92,34 @@
                     </div>
                 </div>
 
-                <!-- Presión y Valores Sanguíneos -->
+                <!-- Mediciones Médicas -->
                 <div class="form-section">
-                    <h3>🩸 Presión y Valores Sanguíneos</h3>
+                    <h3>📊 Mediciones Médicas</h3>
                     
                     <div class="input-group">
-                        <label for="trestbps">Presión Arterial en Reposo (mmHg):</label>
-                        <input type="number" id="trestbps" name="trestbps" min="90" max="220" step="0.1" required>
-                        <small>Entre 90 y 220 mmHg</small>
+                        <label for="avg_glucose_level">Nivel Promedio de Glucosa (mg/dL):</label>
+                        <input type="number" id="avg_glucose_level" name="avg_glucose_level" min="50" max="300" step="0.1" required>
+                        <small>Entre 50 y 300 mg/dL</small>
                     </div>
 
                     <div class="input-group">
-                        <label for="chol">Colesterol Sérico (mg/dl):</label>
-                        <input type="number" id="chol" name="chol" min="110" max="600" step="0.1" required>
-                        <small>Entre 110 y 600 mg/dl</small>
-                    </div>
-
-                    <div class="input-group">
-                        <label for="fbs">Azúcar en Sangre en Ayunas > 120 mg/dl:</label>
-                        <select id="fbs" name="fbs" required>
-                            <option value="">Seleccionar...</option>
-                            <option value="0">No (≤ 120 mg/dl)</option>
-                            <option value="1">Sí (> 120 mg/dl)</option>
-                        </select>
+                        <label for="bmi">Índice de Masa Corporal (BMI):</label>
+                        <input type="number" id="bmi" name="bmi" min="10" max="100" step="0.1" required>
+                        <small>Entre 10 y 100</small>
                     </div>
                 </div>
 
-                <!-- Electrocardiograma y Ritmo Cardíaco -->
+                <!-- Hábitos -->
                 <div class="form-section">
-                    <h3>📈 Electrocardiograma y Ritmo</h3>
+                    <h3>� Hábitos</h3>
                     
                     <div class="input-group">
-                        <label for="restecg">Resultados ECG en Reposo:</label>
-                        <select id="restecg" name="restecg" required>
+                        <label for="smoking_status">Estado de Fumador:</label>
+                        <select id="smoking_status" name="smoking_status" required>
                             <option value="">Seleccionar...</option>
-                            <option value="0">Normal</option>
-                            <option value="1">Anormalidad ST-T</option>
-                            <option value="2">Hipertrofia Ventricular Izquierda</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label for="thalach">Frecuencia Cardíaca Máxima (bpm):</label>
-                        <input type="number" id="thalach" name="thalach" min="50" max="210" step="0.1" required>
-                        <small>Entre 50 y 210 latidos por minuto</small>
-                    </div>
-                </div>
-
-                <!-- Pruebas de Estrés -->
-                <div class="form-section">
-                    <h3>🏃‍♂️ Pruebas de Estrés</h3>
-                    
-                    <div class="input-group">
-                        <label for="oldpeak">Depresión ST inducida por ejercicio:</label>
-                        <input type="number" id="oldpeak" name="oldpeak" min="0" max="7" step="0.1" required>
-                        <small>Entre 0.0 y 7.0</small>
-                    </div>
-
-                    <div class="input-group">
-                        <label for="slope">Pendiente del Segmento ST:</label>
-                        <select id="slope" name="slope" required>
-                            <option value="">Seleccionar...</option>
-                            <option value="1">Ascendente</option>
-                            <option value="2">Plano</option>
-                            <option value="3">Descendente</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Estudios Especializados -->
-                <div class="form-section">
-                    <h3>🔬 Estudios Especializados</h3>
-                    
-                    <div class="input-group">
-                        <label for="ca">Vasos Principales (Fluoroscopía):</label>
-                        <select id="ca" name="ca" required>
-                            <option value="">Seleccionar...</option>
-                            <option value="0">0 vasos</option>
-                            <option value="1">1 vaso</option>
-                            <option value="2">2 vasos</option>
-                            <option value="3">3 vasos</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label for="thal">Talasemia:</label>
-                        <select id="thal" name="thal" required>
-                            <option value="">Seleccionar...</option>
-                            <option value="3">Normal</option>
-                            <option value="6">Defecto Fijo</option>
-                            <option value="7">Defecto Reversible</option>
+                            <option value="never smoked">Nunca fumó</option>
+                            <option value="formerly smoked">Fumó anteriormente</option>
+                            <option value="smokes">Fuma actualmente</option>
                         </select>
                     </div>
                 </div>
