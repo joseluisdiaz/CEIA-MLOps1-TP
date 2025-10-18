@@ -109,8 +109,8 @@ function formatValidationErrors(errors) {
  * Muestra el resultado de la predicción
  */
 function showResult(prediction) {
-    const hasHeartDisease = prediction.int_output;
-    const message = prediction.str_output;
+    const hasHeartDisease = prediction.prediction;
+    const message = prediction.description;
     
     resultDiv.className = `result ${hasHeartDisease ? 'warning' : 'success'}`;
     
