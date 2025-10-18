@@ -1,7 +1,7 @@
 import json
 import pickle
 
-from lib import predict
+from src import predict
 
 print("Abriendo modelo")
 with open('./files/model.pkl', 'rb') as file_ml:
