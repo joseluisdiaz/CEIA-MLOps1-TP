@@ -13,6 +13,9 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing_extensions import Annotated
+from lib import predict as model_predict
+
+app = FastAPI()
 
 
 def load_model(model_name: str, alias: str):
@@ -29,6 +32,7 @@ def load_model(model_name: str, alias: str):
     """
 
     try:
+        print(f'Cargando modelo {model_name} con alias {alias} desde mlflow')
         # Load the trained model from MLflow
         mlflow.set_tracking_uri('http://mlflow:5000')
         client_mlflow = mlflow.MlflowClient()
@@ -36,7 +40,8 @@ def load_model(model_name: str, alias: str):
         model_data_mlflow = client_mlflow.get_model_version_by_alias(model_name, alias)
         model_ml = mlflow.sklearn.load_model(model_data_mlflow.source)
         version_model_ml = int(model_data_mlflow.version)
-    except:
+    except Exception as error:
+        print('Algo salio mal cargando el modelo local', error)
         # If there is no registry in MLflow, open the default model
         file_ml = open('/app/files/model.pkl', 'rb')
         model_ml = pickle.load(file_ml)
@@ -44,6 +49,7 @@ def load_model(model_name: str, alias: str):
         version_model_ml = 0
 
     try:
+        print(f'Cargando modelo la metadata desde S3')
         # Load information of the ETL pipeline from S3
         s3 = boto3.client('s3')
 
@@ -54,11 +60,14 @@ def load_model(model_name: str, alias: str):
 
         data_dictionary["standard_scaler_mean"] = np.array(data_dictionary["standard_scaler_mean"])
         data_dictionary["standard_scaler_std"] = np.array(data_dictionary["standard_scaler_std"])
-    except:
+    except Exception as error:
+        print('Algo salio mal cargando la metadata local', error)
         # If data dictionary is not found in S3, load it from local file
         file_s3 = open('/app/files/data.json', 'r')
         data_dictionary = json.load(file_s3)
         file_s3.close()
+
+    print(f'Version del modelo cargada: {version_model_ml}')
 
     return model_ml, version_model_ml, data_dictionary
 
@@ -101,109 +110,62 @@ def check_model():
 class ModelInput(BaseModel):
     """
     Input schema for the stroke prediction model.
-
-    This class defines the input fields required by the stroke prediction model along with their descriptions
-    and validation constraints.
-
-    :param age: Age of the patient (0 to 150).
-    :param sex: Sex of the patient. 1: male; 0: female.
-    :param cp: Chest pain type. 1: typical angina; 2: atypical angina; 3: non-anginal pain; 4: asymptomatic.
-    :param trestbps: Resting blood pressure in mm Hg on admission to the hospital (90 to 220).
-    :param chol: Serum cholestoral in mg/dl (110 to 600).
-    :param fbs: Fasting blood sugar. 1: >120 mg/dl; 0: <120 mg/dl.
-    :param restecg: Resting electrocardiographic results. 0: normal; 1: having ST-T wave abnormality; 2: showing
-                    probable or definite left ventricular hypertrophy.
-    :param thalach: Maximum heart rate achieved (beats per minute) (50 to 210).
-    :param exang: Exercise induced angina. 1: yes; 0: no.
-    :param oldpeak: ST depression induced by exercise relative to rest (0.0 to 7.0).
-    :param slope: The slope of the peak exercise ST segment. 1: upsloping; 2: flat; 3: downsloping.
-    :param ca: Number of major vessels colored by flourosopy (0 to 3).
-    :param thal: Thalassemia disease. 3: normal; 6: fixed defect; 7: reversable defect.
     """
-
-    age: int = Field(
-        description="Age of the patient",
+    gender: Literal["Male", "Female", "Other"] = Field(
+        description="Género del paciente."
+    )
+    age: float = Field(
         ge=0,
-        le=150,
+        le=99,
+        description="Edad del paciente en años."
     )
-    sex: int = Field(
-        description="Sex of the patient. 1: male; 0: female",
-        ge=0,
-        le=1,
-    )
-    cp: int = Field(
-        description="Chest pain type. 1: typical angina; 2: atypical angina, 3: non-anginal pain; 4: asymptomatic",
-        ge=1,
-        le=4,
-    )
-    trestbps: float = Field(
-        description="Resting blood pressure in mm Hg on admission to the hospital",
-        ge=90,
-        le=220,
-    )
-    chol: float = Field(
-        description="Serum cholestoral in mg/dl",
-        ge=110,
-        le=600,
-    )
-    fbs: int = Field(
-        description="Fasting blood sugar. 1: >120 mg/dl; 0: <120 mg/dl",
+    hypertension: int = Field(
         ge=0,
         le=1,
+        description="Indicador de hipertensión (0 = No, 1 = Sí)."
     )
-    restecg: int = Field(
-        description="Resting electrocardiographic results. 0: normal; 1:  having ST-T wave abnormality (T wave "
-                    "inversions and/or ST elevation or depression of > 0.05 mV), 2: showing probable or definite "
-                    "left ventricular hypertrophy by Estes' criteria",
+    heart_disease: int = Field(
         ge=0,
-        le=2,
+        le=1,
+        description="Indicador de enfermedad cardíaca (0 = No, 1 = Sí)."
     )
-    thalach: float = Field(
-        description="Maximum heart rate achieved (beats per minute)",
+    ever_married: Literal["Yes", "No"] = Field(
+        description="Estado civil del paciente."
+    )
+    work_type: Literal["Private", "Self-employed", "Govt_job", "children", "Never_worked"] = Field(
+        description="Tipo de empleo del paciente."
+    )
+    Residence_type: Literal["Urban", "Rural"] = Field(
+        description="Tipo de zona residencial (Urbana o Rural)."
+    )
+    avg_glucose_level: float = Field(
         ge=50,
-        le=210,
+        le=300,
+        description="Nivel promedio de glucosa en sangre."
     )
-    exang: int = Field(
-        description="Exercise induced angina. 1: yes; 0: no",
-        ge=0,
-        le=1,
+    bmi: float = Field(
+        ge=10,
+        le=100,
+        description="Índice de Masa Corporal (IMC)."
     )
-    oldpeak: float = Field(
-        description="ST depression induced by exercise relative to rest",
-        ge=0.0,
-        le=7.0,
-    )
-    slope: int = Field(
-        description="The slope of the peak exercise ST segment .1: upsloping; 2: flat, 3: downsloping",
-        ge=1,
-        le=3,
-    )
-    ca: int = Field(
-        description="Number of major vessels colored by flourosopy",
-        ge=0,
-        le=3,
-    )
-    thal: Literal[3, 6, 7] = Field(
-        description="Thalassemia disease. 3: normal; 6: fixed defect; 7: reversable defect",
+    smoking_status: Literal["formerly smoked", "never smoked", "smokes"] = Field(
+        description="Estado de tabaquismo del paciente."
     )
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "age": 67,
-                    "sex": 1,
-                    "cp": 4,
-                    "trestbps": 160.0,
-                    "chol": 286.0,
-                    "fbs": 0,
-                    "restecg": 2,
-                    "thalach": 108.0,
-                    "exang": 1,
-                    "oldpeak": 1.5,
-                    "slope": 2,
-                    "ca": 3,
-                    "thal": 3,
+                    "gender": "Male",
+                    "age": 67.0,
+                    "hypertension": 0,
+                    "heart_disease": 1,
+                    "ever_married": "Yes",
+                    "work_type": "Private",
+                    "Residence_type": "Urban",
+                    "avg_glucose_level": 228.69,
+                    "bmi": 36.6,
+                    "smoking_status": "formerly smoked",
                 }
             ]
         }
@@ -212,28 +174,17 @@ class ModelInput(BaseModel):
 
 class ModelOutput(BaseModel):
     """
-    Output schema for the stroke prediction model.
-
-    This class defines the output fields returned by the stroke prediction model along with their descriptions
-    and possible values.
-
-    :param int_output: Output of the model. True if the patient has a stroke.
-    :param str_output: Output of the model in string form. Can be "Healthy patient" or "Stroke detected".
+    Output schema for the prediction model.
     """
-
-    int_output: bool = Field(
-        description="Output of the model. True if the patient has a stroke",
-    )
-    str_output: Literal["Healthy patient", "Stroke detected"] = Field(
-        description="Output of the model in string form",
-    )
+    prediction: int = Field(description="Prediction of the model")
+    description: str = Field(description="Description of the prediction")
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "int_output": True,
-                    "str_output": "Stroke detected",
+                    "prediction": 1,
+                    "description": "The patient is likely to have a stroke.",
                 }
             ]
         }
@@ -243,7 +194,6 @@ class ModelOutput(BaseModel):
 # Load the model before start
 model, version_model, data_dict = load_model("stroke_prediction_model_prod", "champion")
 
-app = FastAPI()
 
 # Add CORS middleware
 app.add_middleware(
@@ -258,11 +208,11 @@ app.add_middleware(
 @app.get("/")
 async def read_root():
     """
-    Root endpoint of the Stroke Detector API.
+    Root endpoint of the Stroke Prediction API.
 
     This endpoint returns a JSON response with a welcome message to indicate that the API is running.
     """
-    return JSONResponse(content=jsonable_encoder({"message": "Welcome to the Stroke Detector API"}))
+    return JSONResponse(content=jsonable_encoder({"message": "Welcome to the Stroke Prediction API"}))
 
 
 @app.post("/predict/", response_model=ModelOutput)
@@ -281,39 +231,16 @@ def predict(
     """
 
     # Extract features from the request and convert them into a list and dictionary
-    features_list = [*features.dict().values()]
-    features_key = [*features.dict().keys()]
-
-    # Convert features into a pandas DataFrame
-    features_df = pd.DataFrame(np.array(features_list).reshape([1, -1]), columns=features_key)
-
-    # Process categorical features
-    for categorical_col in data_dict["categorical_columns"]:
-        features_df[categorical_col] = features_df[categorical_col].astype(int)
-        categories = data_dict["categories_values_per_categorical"][categorical_col]
-        features_df[categorical_col] = pd.Categorical(features_df[categorical_col], categories=categories)
-
-    # Convert categorical features into dummy variables
-    features_df = pd.get_dummies(data=features_df,
-                                 columns=data_dict["categorical_columns"],
-                                 drop_first=True)
-
-    # Reorder DataFrame columns
-    features_df = features_df[data_dict["columns_after_dummy"]]
-
-    # Scale the data using standard scaler
-    features_df = (features_df-data_dict["standard_scaler_mean"])/data_dict["standard_scaler_std"]
-
-    # Make the prediction using the trained model
-    prediction = model.predict(features_df)
+    features_dict = features.dict()
+    prediction = model_predict.run(features_dict, data_dict, model)
 
     # Convert prediction result into string format
-    str_pred = "Healthy patient"
+    str_pred = "The patient is healthy."
     if prediction[0] > 0:
-        str_pred = "Stroke detected"
+        str_pred = "The patient is likely to have a stroke."
 
     # Check if the model has changed asynchronously
     background_tasks.add_task(check_model)
 
     # Return the prediction result
-    return ModelOutput(int_output=bool(prediction[0].item()), str_output=str_pred)
+    return ModelOutput(prediction=prediction[0].item(), description=str_pred)
