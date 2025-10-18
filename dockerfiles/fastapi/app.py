@@ -37,7 +37,8 @@ def load_model(model_name: str, alias: str):
         mlflow.set_tracking_uri('http://mlflow:5000')
         client_mlflow = mlflow.MlflowClient()
 
-        model_data_mlflow = client_mlflow.get_model_version_by_alias(model_name, alias)
+        model_data_mlflow = client_mlflow.get_model_version_by_alias(
+            model_name, alias)
         model_ml = mlflow.sklearn.load_model(model_data_mlflow.source)
         version_model_ml = int(model_data_mlflow.version)
     except Exception as error:
@@ -58,8 +59,10 @@ def load_model(model_name: str, alias: str):
         text_s3 = result_s3["Body"].read().decode()
         data_dictionary = json.loads(text_s3)
 
-        data_dictionary["standard_scaler_mean"] = np.array(data_dictionary["standard_scaler_mean"])
-        data_dictionary["standard_scaler_std"] = np.array(data_dictionary["standard_scaler_std"])
+        data_dictionary["standard_scaler_mean"] = np.array(
+            data_dictionary["standard_scaler_mean"])
+        data_dictionary["standard_scaler_std"] = np.array(
+            data_dictionary["standard_scaler_std"])
     except Exception as error:
         print('Algo salio mal cargando la metadata local', error)
         # If data dictionary is not found in S3, load it from local file
@@ -93,7 +96,8 @@ def check_model():
         mlflow.set_tracking_uri('http://mlflow:5000')
         client = mlflow.MlflowClient()
 
-        # Check in the model registry if the version of the champion has changed
+        # Check in the model registry if the version of the champion has
+        # changed
         new_model_data = client.get_model_version_by_alias(model_name, alias)
         new_version_model = int(new_model_data.version)
 
@@ -102,7 +106,7 @@ def check_model():
             # Load the new model and update version and data dictionary
             model, version_model, data_dict = load_model(model_name, alias)
 
-    except:
+    except BaseException:
         # If an error occurs during the process, pass silently
         pass
 
@@ -132,9 +136,8 @@ class ModelInput(BaseModel):
     ever_married: Literal["Yes", "No"] = Field(
         description="Estado civil del paciente."
     )
-    work_type: Literal["Private", "Self-employed", "Govt_job", "children", "Never_worked"] = Field(
-        description="Tipo de empleo del paciente."
-    )
+    work_type: Literal["Private", "Self-employed", "Govt_job", "children",
+                       "Never_worked"] = Field(description="Tipo de empleo del paciente.")
     Residence_type: Literal["Urban", "Rural"] = Field(
         description="Tipo de zona residencial (Urbana o Rural)."
     )
@@ -149,8 +152,7 @@ class ModelInput(BaseModel):
         description="Índice de Masa Corporal (IMC)."
     )
     smoking_status: Literal["formerly smoked", "never smoked", "smokes"] = Field(
-        description="Estado de tabaquismo del paciente."
-    )
+        description="Estado de tabaquismo del paciente.")
 
     model_config = {
         "json_schema_extra": {
@@ -192,7 +194,8 @@ class ModelOutput(BaseModel):
 
 
 # Load the model before start
-model, version_model, data_dict = load_model("stroke_prediction_model_prod", "champion")
+model, version_model, data_dict = load_model(
+    "stroke_prediction_model_prod", "champion")
 
 
 # Add CORS middleware
@@ -212,7 +215,8 @@ async def read_root():
 
     This endpoint returns a JSON response with a welcome message to indicate that the API is running.
     """
-    return JSONResponse(content=jsonable_encoder({"message": "Welcome to the Stroke Prediction API"}))
+    return JSONResponse(content=jsonable_encoder(
+        {"message": "Welcome to the Stroke Prediction API"}))
 
 
 @app.post("/predict/", response_model=ModelOutput)
@@ -230,7 +234,8 @@ def predict(
     or not using a trained model. It returns the prediction result in both integer and string formats.
     """
 
-    # Extract features from the request and convert them into a list and dictionary
+    # Extract features from the request and convert them into a list and
+    # dictionary
     features_dict = features.dict()
     prediction = model_predict.run(features_dict, data_dict, model)
 

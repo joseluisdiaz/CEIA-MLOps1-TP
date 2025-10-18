@@ -17,6 +17,7 @@ default_args = {
     'dagrun_timeout': datetime.timedelta(minutes=15)
 }
 
+
 @dag(
     dag_id="train_and_register_model",
     description="Train process for Stricke Prediction.",
@@ -26,7 +27,6 @@ default_args = {
     catchup=False,
 )
 def train_and_register_model():
-
 
     @task.virtualenv(
         task_id="train_and_register_model_task",
@@ -40,7 +40,6 @@ def train_and_register_model():
     )
     def train_and_register_model_task():
 
-
         def _train_model(log):
 
             path_X_train = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TRAIN}/X_{consts.TRAIN}.csv"
@@ -50,11 +49,15 @@ def train_and_register_model():
 
             X_train = wr.s3.read_csv(path_X_train)
             y_train = wr.s3.read_csv(path_y_train)
-            X_test  = wr.s3.read_csv(path_X_test)
-            y_test  = wr.s3.read_csv(path_y_test)
+            X_test = wr.s3.read_csv(path_X_test)
+            y_test = wr.s3.read_csv(path_y_test)
 
-            df_train = X_train.reset_index(drop=True).assign(stroke=y_train.squeeze().values)
-            df_test  = X_test.reset_index(drop=True).assign(stroke=y_test.squeeze().values)
+            df_train = X_train.reset_index(
+                drop=True).assign(
+                stroke=y_train.squeeze().values)
+            df_test = X_test.reset_index(
+                drop=True).assign(
+                stroke=y_test.squeeze().values)
 
             log.info("_train_model: datasets loaded")
 
@@ -82,19 +85,20 @@ def train_and_register_model():
 
             return final_model, accuracy, f1
 
-
-
         def _register_model(log, model, acc, f1):
             log.info("_register_model: started")
-            
+
             def _set_experiment(client, name):
                 # 1) Si el experiment ya existe, terminar
-                for e in client.search_experiments(view_type=ViewType.ACTIVE_ONLY):
+                for e in client.search_experiments(
+                        view_type=ViewType.ACTIVE_ONLY):
                     if e.name == name:
                         return
 
-                # 2) Si el experiment existe pero está "deleted", restaurarlo y terminar
-                deleted = [e for e in client.search_experiments(view_type=ViewType.DELETED_ONLY) if e.name == name]
+                # 2) Si el experiment existe pero está "deleted", restaurarlo y
+                # terminar
+                deleted = [e for e in client.search_experiments(
+                    view_type=ViewType.DELETED_ONLY) if e.name == name]
                 if deleted:
                     client.restore_experiment(deleted[0].experiment_id)
                     return
@@ -107,12 +111,12 @@ def train_and_register_model():
                     return float(x)
                 except Exception:
                     return default
-                
+
             def _champion_superado(f1, champion_f1):
-                # El champion es superado si f1 > champion_f1. En lugar de retornar esa evaluacion, simulamos de forma aleatoria.
+                # El champion es superado si f1 > champion_f1. En lugar de
+                # retornar esa evaluacion, simulamos de forma aleatoria.
                 import random
                 return random.choice([True, False])
-
 
             EXPERIMENT_NAME = "stroke_training"
             RM_NAME = "stroke_prediction_model_prod"
@@ -122,7 +126,8 @@ def train_and_register_model():
 
             _set_experiment(client, EXPERIMENT_NAME)
 
-            # Logueo en MLflow (run + params + métricas + artefacto modelo) y registro como Model Version
+            # Logueo en MLflow (run + params + métricas + artefacto modelo) y
+            # registro como Model Version
             with mlflow.start_run(run_name="nb-stroke-challenger") as run:
                 run_id = run.info.run_id
 
@@ -146,16 +151,19 @@ def train_and_register_model():
                 )
                 model_uri = f"runs:/{run_id}/model"
 
-            # Asegurar Registered Model y ubicar la versión registrada de este run
+            # Asegurar Registered Model y ubicar la versión registrada de este
+            # run
             client = MlflowClient()
             try:
-                client.create_registered_model(name=RM_NAME, description="Stroke classifier (PyCaret/Naive Bayes baseline)")
+                client.create_registered_model(
+                    name=RM_NAME, description="Stroke classifier (PyCaret/Naive Bayes baseline)")
             except RestException as e:
                 if getattr(e, "error_code", "") != "RESOURCE_ALREADY_EXISTS":
                     raise
 
             # Buscar la Model Version creada por este run
-            mv_list = client.search_model_versions(f"name = '{RM_NAME}' and run_id = '{run_id}'")
+            mv_list = client.search_model_versions(
+                f"name = '{RM_NAME}' and run_id = '{run_id}'")
             if not mv_list:
                 # fallback: tomar la última versión registrada
                 mv_list = client.get_latest_versions(RM_NAME)
@@ -163,36 +171,53 @@ def train_and_register_model():
             challenger_version = mv.version
 
             # Etiquetas útiles en la versión
-            client.set_model_version_tag(RM_NAME, challenger_version, "stage", "challenger")
-            client.set_model_version_tag(RM_NAME, challenger_version, "f1", str(f1))
-            client.set_model_version_tag(RM_NAME, challenger_version, "accuracy", str(acc))
-            client.set_model_version_tag(RM_NAME, challenger_version, "model_class", type(model).__name__)
+            client.set_model_version_tag(
+                RM_NAME, challenger_version, "stage", "challenger")
+            client.set_model_version_tag(
+                RM_NAME, challenger_version, "f1", str(f1))
+            client.set_model_version_tag(
+                RM_NAME, challenger_version, "accuracy", str(acc))
+            client.set_model_version_tag(
+                RM_NAME,
+                challenger_version,
+                "model_class",
+                type(model).__name__)
             for k, v in (params or {}).items():
-                client.set_model_version_tag(RM_NAME, challenger_version, str(k), str(v))
+                client.set_model_version_tag(
+                    RM_NAME, challenger_version, str(k), str(v))
 
             # Reasignar alias 'challenger' a esta versión
-            client.set_registered_model_alias(RM_NAME, "challenger", challenger_version)
+            client.set_registered_model_alias(
+                RM_NAME, "challenger", challenger_version)
 
             # Comparar contra 'champion' (si existe) y promover si mejora
             try:
-                champion_mv = client.get_model_version_by_alias(RM_NAME, "champion")
-                champion_f1 = _safe_float(champion_mv.tags.get("f1", None), default=0.0)
-                log.info(f"_register_model: champion v{champion_mv.version} f1={champion_f1} | challenger v{challenger_version} f1={f1}")
+                champion_mv = client.get_model_version_by_alias(
+                    RM_NAME, "champion")
+                champion_f1 = _safe_float(
+                    champion_mv.tags.get(
+                        "f1", None), default=0.0)
+                log.info(
+                    f"_register_model: champion v{champion_mv.version} f1={champion_f1} | challenger v{challenger_version} f1={f1}")
 
                 if _champion_superado(f1, champion_f1):
-                    client.set_registered_model_alias(RM_NAME, "champion", challenger_version)
-                    log.info(f"_register_model: PROMOTED challenger v{challenger_version} -> CHAMPION")
+                    client.set_registered_model_alias(
+                        RM_NAME, "champion", challenger_version)
+                    log.info(
+                        f"_register_model: PROMOTED challenger v{challenger_version} -> CHAMPION")
                 else:
-                    log.info(f"_register_model: kept CHAMPION v{champion_mv.version}")
+                    log.info(
+                        f"_register_model: kept CHAMPION v{champion_mv.version}")
 
             except RestException:
                 # No había CHAMPION aún → este challenger pasa a ser el primero
-                client.set_registered_model_alias(RM_NAME, "champion", challenger_version)
-                log.info(f"_register_model: no champion found — set v{challenger_version} as CHAMPION")
+                client.set_registered_model_alias(
+                    RM_NAME, "champion", challenger_version)
+                log.info(
+                    f"_register_model: no champion found — set v{challenger_version} as CHAMPION")
 
-            log.info(f"_register_model: completed (run_id={run_id}, uri={model_uri}, challenger=v{challenger_version})")
-
-
+            log.info(
+                f"_register_model: completed (run_id={run_id}, uri={model_uri}, challenger=v{challenger_version})")
 
         import sys
         sys.path.append("/opt/airflow/dags")
@@ -215,14 +240,10 @@ def train_and_register_model():
         log.info("train_and_register_model_task: _train_model executed")
 
         _register_model(log, model, acc, f1)
-        
+
         log.info("train_and_register_model_task: completed")
-
-
 
     train_and_register_model_task()
 
 
-
 dag = train_and_register_model()
-

@@ -1,0 +1,10 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+COPY . .
+
+# Instalar autopep8
+RUN pip install autopep8
+
+# Comando por defecto: formatea todo el código
+CMD ["bash", "-c", "autopep8 --in-place --aggressive --aggressive -r ."]
