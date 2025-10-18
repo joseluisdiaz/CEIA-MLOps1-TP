@@ -10,6 +10,7 @@ from typing import Literal
 from fastapi import FastAPI, Body, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing_extensions import Annotated
 
@@ -243,6 +244,15 @@ class ModelOutput(BaseModel):
 model, version_model, data_dict = load_model("stroke_prediction_model_prod", "champion")
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # En producción, especificar dominios específicos
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
