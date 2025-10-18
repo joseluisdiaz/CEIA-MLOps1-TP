@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  formatter:
+    build:
+      context: .
+      dockerfile: Dockerfile.format
+    volumes:
+      - .:/app
+    profiles:
+      - all

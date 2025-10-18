@@ -218,6 +218,9 @@ docker compose up frontend fastapi mlflow postgres s3 -d
 
 # Solo pipelines
 docker compose --profile airflow up -d
+
+# Formatter
+docker compose run --rm formatter
 ```
 
 <br />
