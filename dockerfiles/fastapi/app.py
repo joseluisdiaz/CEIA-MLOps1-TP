@@ -113,61 +113,89 @@ def check_model():
 
 class ModelInput(BaseModel):
     """
-    Input schema for the stroke prediction model.
+    Input schema for the heart disease prediction model.
     """
-    gender: Literal["Male", "Female", "Other"] = Field(
-        description="Género del paciente."
-    )
-    age: float = Field(
+    age: int = Field(
+        description="Age of the patient",
         ge=0,
-        le=99,
-        description="Edad del paciente en años."
+        le=150,
     )
-    hypertension: int = Field(
+    sex: int = Field(
+        description="Sex of the patient. 1: male; 0: female",
         ge=0,
         le=1,
-        description="Indicador de hipertensión (0 = No, 1 = Sí)."
     )
-    heart_disease: int = Field(
+    cp: int = Field(
+        description="Chest pain type. 1: typical angina; 2: atypical angina, 3: non-anginal pain; 4: asymptomatic",
+        ge=1,
+        le=4,
+    )
+    trestbps: float = Field(
+        description="Resting blood pressure in mm Hg on admission to the hospital",
+        ge=90,
+        le=220,
+    )
+    chol: float = Field(
+        description="Serum cholestoral in mg/dl",
+        ge=110,
+        le=600,
+    )
+    fbs: int = Field(
+        description="Fasting blood sugar. 1: >120 mg/dl; 0: <120 mg/dl",
         ge=0,
         le=1,
-        description="Indicador de enfermedad cardíaca (0 = No, 1 = Sí)."
     )
-    ever_married: Literal["Yes", "No"] = Field(
-        description="Estado civil del paciente."
+    restecg: int = Field(
+        description="Resting electrocardiographic results. 0: normal; 1: having ST-T wave abnormality; 2: showing probable or definite left ventricular hypertrophy",
+        ge=0,
+        le=2,
     )
-    work_type: Literal["Private", "Self-employed", "Govt_job", "children",
-                       "Never_worked"] = Field(description="Tipo de empleo del paciente.")
-    Residence_type: Literal["Urban", "Rural"] = Field(
-        description="Tipo de zona residencial (Urbana o Rural)."
-    )
-    avg_glucose_level: float = Field(
+    thalach: float = Field(
+        description="Maximum heart rate achieved (beats per minute)",
         ge=50,
-        le=300,
-        description="Nivel promedio de glucosa en sangre."
+        le=210,
     )
-    bmi: float = Field(
-        ge=10,
-        le=100,
-        description="Índice de Masa Corporal (IMC)."
+    exang: int = Field(
+        description="Exercise induced angina. 1: yes; 0: no",
+        ge=0,
+        le=1,
     )
-    smoking_status: Literal["formerly smoked", "never smoked", "smokes"] = Field(
-        description="Estado de tabaquismo del paciente.")
+    oldpeak: float = Field(
+        description="ST depression induced by exercise relative to rest",
+        ge=0.0,
+        le=7.0,
+    )
+    slope: int = Field(
+        description="The slope of the peak exercise ST segment. 1: upsloping; 2: flat; 3: downsloping",
+        ge=1,
+        le=3,
+    )
+    ca: int = Field(
+        description="Number of major vessels colored by flourosopy",
+        ge=0,
+        le=3,
+    )
+    thal: Literal[3, 6, 7] = Field(
+        description="Thalassemia disease. 3: normal; 6: fixed defect; 7: reversable defect",
+    )
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "gender": "Male",
-                    "age": 67.0,
-                    "hypertension": 0,
-                    "heart_disease": 1,
-                    "ever_married": "Yes",
-                    "work_type": "Private",
-                    "Residence_type": "Urban",
-                    "avg_glucose_level": 228.69,
-                    "bmi": 36.6,
-                    "smoking_status": "formerly smoked",
+                    "age": 67,
+                    "sex": 1,
+                    "cp": 4,
+                    "trestbps": 160.0,
+                    "chol": 286.0,
+                    "fbs": 0,
+                    "restecg": 2,
+                    "thalach": 108.0,
+                    "exang": 1,
+                    "oldpeak": 1.5,
+                    "slope": 2,
+                    "ca": 3,
+                    "thal": 3
                 }
             ]
         }
