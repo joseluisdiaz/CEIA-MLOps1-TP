@@ -39,7 +39,14 @@ default_args = {
     catchup=False,
 )
 def train_and_register_model():
+    """
+    Función principal del DAG para entrenar y registrar el modelo de predicción de 
+    accidentes cerebrovasculares.
 
+    Esta función organiza el proceso de entrenamiento del modelo mediante PyCaret, 
+    evalúa el modelo y lo registra en el registro de modelos de MLflow con las 
+    versiones y alias adecuados.
+    """
     @task.virtualenv(
         task_id="train_and_register_model_task",
         requirements=[
@@ -53,6 +60,12 @@ def train_and_register_model():
         system_site_packages=True
     )
     def train_and_register_model_task():
+        """
+        Entrene y registre el modelo de predicción de accidentes cerebrovasculares con PyCaret.
+
+        Cargue los datos preprocesados, entrene un modelo Naive Bayes con PyCaret, lo evalúe y 
+        lo registre en MLflow con lógica de champion/challenger.
+        """
 
         def _optimize_xgboost_hyperparams(X, y, n_trials=10):
             """
@@ -99,6 +112,23 @@ def train_and_register_model():
             return study.best_params
 
         def _train_model(log, n_trials_xgb=10, n_trials_nb=10):
+            """
+            Entrene el modelo de predicción de ACVs con PyCaret.
+            
+            Loads training and test data from S3, sets up PyCaret environment,
+            trains a Naive Bayes classifier, and returns the model with metrics.
+            Carga los datos de entrenamiento y prueba de S3, configura el entorno 
+            de PyCaret, entrena dos modelos y devuelve los modelos entrenados 
+            con sus métricas.
+
+            Args:
+                log: Logger para registrar el progreso del entrenamiento
+                n_trials_xgb: Cantidad de trials para XGBoost
+                n_trials_nb: Cantidad de trials para Naive Bayes
+                
+            Returns:
+                dict: Diccionario con las métricas y modelos entrenados
+            """
 
             path_X_train = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TRAIN}/X_{consts.TRAIN}.csv"
             path_y_train = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TRAIN}/y_{consts.TRAIN}.csv"
@@ -185,6 +215,19 @@ def train_and_register_model():
                 f1,
                 model_type='nb',
                 hyperparams=None):
+            """
+            Registra el modelo entrenado en el registro de modelos de MLflow.
+            
+            Crea o actualiza el experimento, registra el modelo con métricas, 
+            lo registra como una nueva versión y gestiona los alias de 
+            champion/challenger según la comparación de rendimiento.
+
+            Args:
+                log: Logger para registrar el progreso del registro
+                model: El modelo entrenado que se registrará
+                acc (float): Métrica de Accuracy del modelo
+                f1 (float): Métrica de F1 score del modelo
+            """
             log.info(f"_register_model: started for {model_type}")
 
             def _set_experiment(client, name):
