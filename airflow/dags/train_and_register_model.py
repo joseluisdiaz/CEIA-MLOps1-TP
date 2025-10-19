@@ -5,24 +5,19 @@ from airflow.decorators import dag, task
 markdown_text = """
 ### Train Process for Stroke Prediction
 
-This DAG trains multiple models for stroke prediction with automated hyperparameter optimization:
+Este DAG entrena múltiples modelos para la predicción de ACVs con una búsqueda de hiperparámetros automatizada:
 
-#### Models:
-- **Naive Bayes**: Optimized using PyCaret's tune_model with Optuna backend
-- **XGBoost**: Optimized using custom Optuna implementation
-
-#### Configuration Options:
-- **N_TRIALS_XGBOOST**: Number of Optuna trials for XGBoost (default: 10)
-- **N_TRIALS_NB**: Number of tuning iterations for Naive Bayes (default: 10)
+#### Modelos:
+- **Naive Bayes**: Optimizado usando tune_model de PyCaret con el backend Optuna
+- **XGBoost**: Optimizado usando Optuna
 
 #### Features:
-- Automated hyperparameter optimization for BOTH models
-- Naive Bayes: PyCaret tune_model with TPE algorithm
-- XGBoost: Custom Optuna optimization with MedianPruner
-- Model versioning and registration in MLflow
-- Champion/Challenger model comparison
-- Comprehensive metrics logging (F1, Accuracy)
-- All hyperparameters logged and tracked
+- Optimización automatizada de hiperparámetros para ambos modelos
+- Entrenamiento de varios modelos para buscar el mejor
+- Versionado y registro de modelos en MLflow
+- Comparación de modelos Champion/Challenger
+- Registro completo de métricas (F1, Accuracy)
+- Registro y seguimiento de todos los hiperparámetros
 """
 
 default_args = {
@@ -222,7 +217,7 @@ def train_and_register_model():
                 import random
                 return random.choice([True, False])
 
-            EXPERIMENT_NAME = "stroke_training_5"
+            EXPERIMENT_NAME = "stroke_training"
             RM_NAME = "stroke_prediction_model_prod"
 
             mlflow.set_tracking_uri(consts.MLFLOW_TRACKING_URI)
