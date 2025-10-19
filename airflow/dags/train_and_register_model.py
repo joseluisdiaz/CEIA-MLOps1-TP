@@ -5,7 +5,19 @@ from airflow.decorators import dag, task
 markdown_text = """
 ### Train Process for Stroke Prediction
 
-This DAG trains the model ...
+Este DAG entrena múltiples modelos para la predicción de ACVs con una búsqueda de hiperparámetros automatizada:
+
+#### Modelos:
+- **Naive Bayes**: Optimizado usando tune_model de PyCaret con el backend Optuna
+- **XGBoost**: Optimizado usando Optuna
+
+#### Features:
+- Optimización automatizada de hiperparámetros para ambos modelos
+- Entrenamiento de varios modelos para buscar el mejor
+- Versionado y registro de modelos en MLflow
+- Comparación de modelos Champion/Challenger
+- Registro completo de métricas (F1, Accuracy)
+- Registro y seguimiento de todos los hiperparámetros
 """
 
 default_args = {
@@ -27,20 +39,96 @@ default_args = {
     catchup=False,
 )
 def train_and_register_model():
+    """
+    Función principal del DAG para entrenar y registrar el modelo de predicción de 
+    accidentes cerebrovasculares.
 
+    Esta función organiza el proceso de entrenamiento del modelo mediante PyCaret, 
+    evalúa el modelo y lo registra en el registro de modelos de MLflow con las 
+    versiones y alias adecuados.
+    """
     @task.virtualenv(
         task_id="train_and_register_model_task",
         requirements=[
             "awswrangler==3.6.0",
             "mlflow==2.10.2",
             "scikit-learn>=1.4,<1.7",
+            "xgboost==2.0.3",
+            "optuna==3.6.1",
             "pycaret @ git+https://github.com/pycaret/pycaret.git@master"
         ],
         system_site_packages=True
     )
     def train_and_register_model_task():
+        """
+        Entrene y registre el modelo de predicción de accidentes cerebrovasculares con PyCaret.
 
-        def _train_model(log):
+        Cargue los datos preprocesados, entrene un modelo Naive Bayes con PyCaret, lo evalúe y 
+        lo registre en MLflow con lógica de champion/challenger.
+        """
+
+        def _optimize_xgboost_hyperparams(X, y, n_trials=10):
+            """
+            Optimize XGBoost hyperparameters using Optuna
+            """
+            import optuna
+            from optuna.pruners import MedianPruner
+            import xgboost as xgb
+            from sklearn.model_selection import cross_val_score
+
+            def objective(trial):
+                params = {
+                    'objective': 'binary:logistic',
+                    'eval_metric': 'logloss',
+                    'use_label_encoder': False,
+                    'n_estimators': trial.suggest_int('n_estimators', 100, 200),
+                    'max_depth': trial.suggest_int('max_depth', 2, 8),
+                    'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.1),
+                    'subsample': trial.suggest_float('subsample', 0.5, 1.0),
+                    'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
+                    'gamma': trial.suggest_float('gamma', 0, 3),
+                    'reg_alpha': trial.suggest_float('reg_alpha', 0, 5),
+                    'reg_lambda': trial.suggest_float('reg_lambda', 0, 5),
+                    'scale_pos_weight': trial.suggest_float('scale_pos_weight', 1, 10)
+                }
+                clf = xgb.XGBClassifier(**params, random_state=42, n_jobs=-1)
+                score = cross_val_score(
+                    clf, X, y, cv=5, scoring='f1', n_jobs=-1).mean()
+
+                # Reportamos para el pruning
+                trial.report(score, step=0)
+                if trial.should_prune():
+                    raise optuna.TrialPruned()
+
+                return score
+
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
+            study = optuna.create_study(
+                direction="maximize",
+                pruner=MedianPruner(n_warmup_steps=5)
+            )
+            study.optimize(objective, n_trials=n_trials)
+
+            return study.best_params
+
+        def _train_model(log, n_trials_xgb=10, n_trials_nb=10):
+            """
+            Entrene el modelo de predicción de ACVs con PyCaret.
+            
+            Loads training and test data from S3, sets up PyCaret environment,
+            trains a Naive Bayes classifier, and returns the model with metrics.
+            Carga los datos de entrenamiento y prueba de S3, configura el entorno 
+            de PyCaret, entrena dos modelos y devuelve los modelos entrenados 
+            con sus métricas.
+
+            Args:
+                log: Logger para registrar el progreso del entrenamiento
+                n_trials_xgb: Cantidad de trials para XGBoost
+                n_trials_nb: Cantidad de trials para Naive Bayes
+                
+            Returns:
+                dict: Diccionario con las métricas y modelos entrenados
+            """
 
             path_X_train = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TRAIN}/X_{consts.TRAIN}.csv"
             path_y_train = f"{consts.S3}{consts.BUCKET_FINAL}{consts.TRAIN}/y_{consts.TRAIN}.csv"
@@ -71,22 +159,76 @@ def train_and_register_model():
                 verbose=True,
                 index=False
             )
-            model = create_model('nb', cross_validation=False)
-            final_model = finalize_model(model)
 
-            log.info("_train_model: model trained")
+            # Train and tune Naive Bayes model
+            log.info(
+                f"_train_model: Starting Naive Bayes hyperparameter tuning with {n_trials_nb} iterations")
+            nb_model = create_model('nb')
+            tuned_nb_model = tune_model(
+                nb_model,
+                n_iter=n_trials_nb,
+                optimize='F1',
+                search_library='optuna',
+                search_algorithm='tpe'
+            )
+            final_nb_model = finalize_model(tuned_nb_model)
+            nb_metrics = pull()
+            nb_accuracy = float(nb_metrics.get('Accuracy', [None])[0])
+            nb_f1 = float(nb_metrics.get('F1', [None])[0])
 
-            metrics = pull()
+            # Obtener los mejores hiperparámetros de Naive Bayes
+            try:
+                nb_params = tuned_nb_model.get_params()
+            except Exception:
+                nb_params = {}
 
-            log.info(f"_train_model: model metrics:\n{metrics}")
+            log.info(
+                f"_train_model: Naive Bayes tuned - Accuracy: {nb_accuracy}, F1: {nb_f1}")
+            log.info(f"_train_model: Best Naive Bayes params: {nb_params}")
 
-            accuracy = float(metrics.get('Accuracy', [None])[0])
-            f1 = float(metrics.get('F1', [None])[0])
+            # Train XGBoost model with Optuna optimization
+            log.info(
+                f"_train_model: Starting XGBoost Optuna optimization with {n_trials_xgb} trials")
+            xgb_params = _optimize_xgboost_hyperparams(
+                X_train, y_train.squeeze(), n_trials=n_trials_xgb)
+            log.info(
+                f"_train_model: Best XGBoost hyperparameters found: {xgb_params}")
 
-            return final_model, accuracy, f1
+            xgb_model = create_model('xgboost', **xgb_params)
+            final_xgb_model = finalize_model(xgb_model)
+            xgb_metrics = pull()
+            xgb_accuracy = float(xgb_metrics.get('Accuracy', [None])[0])
+            xgb_f1 = float(xgb_metrics.get('F1', [None])[0])
 
-        def _register_model(log, model, acc, f1):
-            log.info("_register_model: started")
+            log.info(
+                f"_train_model: XGBoost trained - Accuracy: {xgb_accuracy}, F1: {xgb_f1}")
+
+            return {
+                'nb': (final_nb_model, nb_accuracy, nb_f1, nb_params),
+                'xgb': (final_xgb_model, xgb_accuracy, xgb_f1, xgb_params)
+            }
+
+        def _register_model(
+                log,
+                model,
+                acc,
+                f1,
+                model_type='nb',
+                hyperparams=None):
+            """
+            Registra el modelo entrenado en el registro de modelos de MLflow.
+            
+            Crea o actualiza el experimento, registra el modelo con métricas, 
+            lo registra como una nueva versión y gestiona los alias de 
+            champion/challenger según la comparación de rendimiento.
+
+            Args:
+                log: Logger para registrar el progreso del registro
+                model: El modelo entrenado que se registrará
+                acc (float): Métrica de Accuracy del modelo
+                f1 (float): Métrica de F1 score del modelo
+            """
+            log.info(f"_register_model: started for {model_type}")
 
             def _set_experiment(client, name):
                 # 1) Si el experiment ya existe, terminar
@@ -128,7 +270,8 @@ def train_and_register_model():
 
             # Logueo en MLflow (run + params + métricas + artefacto modelo) y
             # registro como Model Version
-            with mlflow.start_run(run_name="nb-stroke-challenger") as run:
+            run_name = f"{model_type}-stroke-challenger"
+            with mlflow.start_run(run_name=run_name) as run:
                 run_id = run.info.run_id
 
                 # Params del estimador (si existen)
@@ -138,6 +281,11 @@ def train_and_register_model():
                     params = {}
                 for k, v in params.items():
                     mlflow.log_param(str(k), str(v))
+
+                # Log hyperparameters adicionales si existen
+                if hyperparams:
+                    for k, v in hyperparams.items():
+                        mlflow.log_param(f"optuna_{k}", str(v))
 
                 # Métricas
                 mlflow.log_metric("accuracy", float(acc))
@@ -186,6 +334,12 @@ def train_and_register_model():
                 client.set_model_version_tag(
                     RM_NAME, challenger_version, str(k), str(v))
 
+            # Agregar hyperparameters como tags si existen
+            if hyperparams:
+                for k, v in hyperparams.items():
+                    client.set_model_version_tag(
+                        RM_NAME, challenger_version, f"optuna_{k}", str(v))
+
             # Reasignar alias 'challenger' a esta versión
             client.set_registered_model_alias(
                 RM_NAME, "challenger", challenger_version)
@@ -226,7 +380,7 @@ def train_and_register_model():
         import utils.constants as consts
         import awswrangler as wr
         from pycaret.classification import (
-            setup, create_model, finalize_model, pull
+            setup, create_model, finalize_model, pull, tune_model
         )
         import mlflow
         from mlflow.tracking import MlflowClient
@@ -235,11 +389,38 @@ def train_and_register_model():
 
         log.info("train_and_register_model_task: started")
 
-        model, acc, f1 = _train_model(log)
+        # Parámetros de configuración - Número de iteraciones para optimización
+        N_TRIALS_XGBOOST = 10  # Número de trials de Optuna para XGBoost
+        N_TRIALS_NB = 10       # Número de iteraciones de tuning para Naive Bayes
+
+        models_dict = _train_model(
+            log,
+            n_trials_xgb=N_TRIALS_XGBOOST,
+            n_trials_nb=N_TRIALS_NB)
 
         log.info("train_and_register_model_task: _train_model executed")
 
-        _register_model(log, model, acc, f1)
+        # Register Naive Bayes model
+        nb_model, nb_acc, nb_f1, nb_hyperparams = models_dict['nb']
+        _register_model(
+            log,
+            nb_model,
+            nb_acc,
+            nb_f1,
+            model_type='nb',
+            hyperparams=nb_hyperparams)
+        log.info("train_and_register_model_task: Naive Bayes registered")
+
+        # Register XGBoost model
+        xgb_model, xgb_acc, xgb_f1, xgb_hyperparams = models_dict['xgb']
+        _register_model(
+            log,
+            xgb_model,
+            xgb_acc,
+            xgb_f1,
+            model_type='xgboost',
+            hyperparams=xgb_hyperparams)
+        log.info("train_and_register_model_task: XGBoost registered")
 
         log.info("train_and_register_model_task: completed")
 

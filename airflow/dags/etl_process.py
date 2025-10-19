@@ -3,11 +3,13 @@ import datetime
 from airflow.decorators import dag, task
 
 markdown_text = """
-### ETL Process for Stroke Prediction Dataset
+### Proceso de ETL para el dataset de predicción de ACVs (Stroke)
 
-This DAG extracts information from the Stroke Prediction dataset from Kaggle.
-It preprocesses the data by creating dummy variables for categorical columns and scaling numerical features.
-After preprocessing, the data is saved back into an S3 bucket (MinIO) as separate CSV files for training and testing.
+Este DAG extrae información del conjunto de datos de predicción de ACVs de Kaggle.
+Preprocesa los datos creando variables dummy para columnas categóricas y escalando 
+features numéricas.
+Tras el preprocesamiento, los datos se guardan en un bucket de S3 (MinIO) como 
+archivos .csv independientes para train y test.
 """
 
 
@@ -22,7 +24,7 @@ default_args = {
 
 
 @dag(dag_id="process_etl_stroke_data",
-     description="ETL process for stroke data, separating the dataset into training and testing sets.",
+     description="Proceso ETL para datos de ACVs, que separa el conjunto de datos en conjuntos de train y test.",
      doc_md=markdown_text,
      tags=["ETL",
             "Stroke"],
@@ -63,7 +65,7 @@ def process_etl_stroke_data():
     )
     def null_imputation():
         """
-        Impute missing values in the dataset.
+        Imputar valores faltantes en el dataset.
         """
         import sys
         sys.path.append("/opt/airflow/dags")
@@ -132,7 +134,7 @@ def process_etl_stroke_data():
     )
     def make_dummies_variables():
         """
-        Convert categorical variables into one-hot encoding.
+        Convierte variables categóricas en one-hot encoding.
         """
         import sys
         sys.path.append("/opt/airflow/dags")
@@ -232,7 +234,7 @@ def process_etl_stroke_data():
     )
     def split_dataset():
         """
-        Generate a dataset split into a training part and a test part
+        Generar un dataset dividido en train y test
         """
         import sys
         sys.path.append("/opt/airflow/dags")
@@ -281,7 +283,7 @@ def process_etl_stroke_data():
     )
     def normalize_data():
         """
-        Standardization of numerical columns
+        Estandarización de columnas numéricas
         """
         import sys
         sys.path.append("/opt/airflow/dags")
