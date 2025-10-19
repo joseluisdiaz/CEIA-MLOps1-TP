@@ -104,23 +104,16 @@ Utilizamos el [Stroke Prediction Dataset de Kaggle](https://www.kaggle.com/datas
   - Normalización de características
   - División train/test estratificada
 
-### 4. **Experimentación** (`/notebook_example/`)
+### 4. **Entrenamiento** (`/airflow/dags/train_and_register_model.py`)
 
-- **Tecnología**: MLflow, Optuna
+- **Tecnología**: MLflow, Airflow, PyCaret
 - **Funcionalidades**:
-  - Optimización bayesiana de hiperparámetros
+  - Entrenamiento automático del primer modelo y de los modelos challenger
   - Registro automático de experimentos
-  - Comparación de múltiples algoritmos
-  - Validación cruzada con métricas personalizadas
-
-### 5. **Re-entrenamiento** (`/airflow/dags/retrain_the_model.py`)
-
-- **Tecnología**: MLflow, Airflow
-- **Funcionalidades**:
-  - Entrenamiento automático de modelos challenger
   - Comparación con modelo champion
   - Promoción automática del mejor modelo
   - Versionado de modelos
+
 
 <br />
 
@@ -133,11 +126,11 @@ Utilizamos el [Stroke Prediction Dataset de Kaggle](https://www.kaggle.com/datas
 Datos Raw → Limpieza → Imputación → Dummy Variables → Normalización → Train/Test Split
 ```
 
-### 2. **Experimentación y Entrenamiento**
+### 2. **Entrenamiento/re-entrenamiento Continuo**
 
 ```bash
-# Jupyter Notebook + Optuna
-Datos → Optimización → Múltiples Modelos → Validación → Mejor Modelo → MLflow
+# Airflow DAG
+Datos → Challenger Model → Evaluación → Champion Update (si mejor)
 ```
 
 ### 3. **Deployment y Predicción**
@@ -145,13 +138,6 @@ Datos → Optimización → Múltiples Modelos → Validación → Mejor Modelo 
 ```bash
 # API + Frontend
 Modelo Champion → FastAPI → Frontend → Usuario → Predicción
-```
-
-### 4. **Re-entrenamiento Continuo**
-
-```bash
-# Airflow DAG
-Nuevos Datos → Challenger Model → Evaluación → Champion Update (si mejor)
 ```
 
 <br />
@@ -169,7 +155,6 @@ Nuevos Datos → Challenger Model → Evaluación → Champion Update (si mejor)
 | **Almacenamiento**   | MinIO (S3)            | Latest  |
 | **Containerización** | Docker + Compose      | 20.10+  |
 | **ML Framework**     | Scikit-learn, PyCaret | Latest  |
-| **Optimización**     | Optuna                | 3.0+    |
 
 <br />
 
@@ -197,6 +182,16 @@ Nuevos Datos → Challenger Model → Evaluación → Champion Update (si mejor)
 4. **Escalar servicios** según demanda
 
 <br />
+
+## Compatibilidad
+
+**Esta solución fue probada en los siguientes entornos:**
+- ✅ Windows
+- ✅ Mac
+- ✅ Linux
+
+<br />
+
 
 ## Configuración Avanzada
 
